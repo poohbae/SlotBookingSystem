@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - MedCare App Booking System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <h2>MedCare App</h2>
+        <div style="text-align: center;">
+            <ul style="padding: 0; margin: 0; display: flex; gap: 15px;">
+                <li>
+                    <a href="{{ url_for('home') }}" class="nav-btn">Home</a>
+                </li>
+                <li>
+                    <a href="{{ url_for('booking') }}" class="nav-btn">Book an Appointment</a>
+                </li>
+                <li>
+                    <a href="#contact-form" class="nav-btn">Contact Us</a>
+                </li>
+                <li>
+                    <a href="{{ url_for('login') }}" class="login-btn">Login</a>
+                </li>
+            </ul>
+            
+            <div style="font-size: 14px; color: rgb(5, 0, 0); margin-top: 5px; font-style: italic;">
+                Available time slots are <b style="font-style: normal;">30-minute</b> intervals between <b style="font-style: normal;">10:00 AM</b> and <b style="font-style: normal;">5:00 PM</b>.
+            </div>
+            
+            
+        </div>
+    </nav>
+    <section id="contact-form" >
+    </section>
+    
+    <!-- JavaScript for Smooth Scroll -->
+    <script>
+        document.querySelectorAll('.nav-btn')?.forEach(button => {
+            button.addEventListener('click', function(event) {
+                // Check if the "Contact Us" link is clicked
+                if (this.getAttribute('href') === '#contact-form') {
+                    event.preventDefault();  // Prevent default anchor behavior
+                    window.scrollTo({ 
+                        top: document.body.scrollHeight,  // Scroll to the bottom of the page
+                        behavior: 'smooth'  // Smooth scrolling
+                    });
+                }
+            });
+        });
+    </script>
+    
+    <script>
+        window.addEventListener("scroll", function() {
+            var navbar = document.querySelector(".navbar");
+            if (window.scrollY > 50) { // Change color after 50px scroll
+                navbar.style.background = "white";
+            } else {
+                navbar.style.background = "white";
+            }
+        });
+    </script>
+    
+    <header class="hero">
+        <h1 class="fade-in">Your Trusted Appointment Booking Platform</h1>
+        <p class="slide-up">Connecting you with top medical professionals effortlessly.</p>
+    </header>
+    
+<!-- Main Section of MedCare App -->
+<section style="display: flex; align-items: center; justify-content: space-between; padding: 50px; background: #12232E; color: white; max-width: 1200px; margin: auto; border-radius: 10px;">
+
+    <!-- Left Side: Image -->
+    <div style="flex: 1; padding-right: 30px;">
+        <img src="https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/7b6ca93e-5c75-479c-53ac-e083d1397b00/publicContain"  alt="Appointment Booking" 
+            style="max-width: 100%; border-radius: 10px;">
+    </div>
+
+    <!-- Right Side: Text Content -->
+    <div style="flex: 1;">
+        <h1 style="
+        font-size: 60px; 
+        font-weight: bold; 
+        color: #ffffff; 
+        margin-bottom: 15px; 
+        display: flex; 
+        align-items: center; 
+        gap: 10px; 
+        animation: fadeInScale 1.5s ease-in-out;">
+        
+        <i class="fas fa-stethoscope" style="
+            font-size: 45px; 
+            color: #f8b400; 
+            animation: bounce 2s infinite;"></i>
+        
+        MedCare App
+    </h1>
+    
+    <style>
+    @keyframes fadeInScale {
+        from { opacity: 0; transform: scale(0.8); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
+    }
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
+    
+        <h2 style="font-size: 28px; font-weight: bold; color: #f8b400; margin-bottom: 10px;">
+            Book Appointments Easily with Top Doctors
+        </h2>
+        <p style="font-size: 16px; line-height: 1.6; color: #EAEAEA;">
+            MedCare App is your one-stop solution for booking doctor appointments across various hospitals.
+            Whether you're a first-time user or a returning patient, our seamless slot booking system 
+            ensures you get the right doctor at the right time.
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #EAEAEA;">
+            Choose from a list of verified doctors, view their available time slots, and confirm 
+            your appointment with just a few clicks. Enjoy a hassle-free healthcare experience!
+        </p>
+        
+    <!-- CTA Button with Booking Link -->
+    <a href="{{ url_for('booking') }}" style="text-decoration: none;">
+        <button style="background: #f8b400; color: #12232E; padding: 12px 24px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;">
+            Book an Appointment
+        </button>
+    </a>
+    </div>
+
+</section>
+
+<section style="padding: 60px; background-color: #f9f9f9;">
+    <div style="text-align: center;">
+        <h2 style="font-size: 28px; font-weight: bold; margin-bottom: 30px;">Why Choose Us?</h2>
+    </div>
+
+    <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 50px;">
+
+        <!-- Convenience -->
+        <div style="width: 250px; text-align: center;">
+            <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
+                alt="Convenience" style="width: 80px; animation: fadeIn 1.5s;">
+            <h3 style="font-size: 18px; margin-top: 10px;">Convenience</h3>
+            <p style="font-size: 14px; color: #555;">Book your doctor appointments hassle-free.</p>
+        </div>
+
+        <!-- Easy Booking -->
+        <div style="width: 250px; text-align: center;">
+            <img src="https://cdn-icons-png.flaticon.com/512/3208/3208703.png" 
+                alt="Easy Booking" style="width: 80px; animation: fadeIn 1.5s;">
+            <h3 style="font-size: 18px; margin-top: 10px;">Easy Booking</h3>
+            <p style="font-size: 14px; color: #555;">Book an appointment in just a few clicks.</p>
+        </div>
+
+        <!-- Top Doctors -->
+        <div style="width: 250px; text-align: center;">
+            <img src="https://cdn-icons-png.flaticon.com/512/2784/2784445.png" 
+                alt="Top Doctors" style="width: 80px; animation: fadeIn 1.5s;">
+            <h3 style="font-size: 18px; margin-top: 10px;">Top Doctors</h3>
+            <p style="font-size: 14px; color: #555;">Connect with highly qualified medical professionals.</p>
+        </div>
+
+        <!-- Trusted Reviews -->
+        <div style="width: 250px; text-align: center;">
+            <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" 
+                alt="Reviews" style="width: 80px; animation: fadeIn 1.5s;">
+            <h3 style="font-size: 18px; margin-top: 10px;">Trusted by Patients</h3>
+            <p style="font-size: 14px; color: #555;">Read verified patient reviews before booking.</p>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 50px;">
+        <h2 style="font-size: 24px; font-weight: bold;">What Our Users Say</h2>
+        <p style="font-size: 16px; font-style: italic; margin-top: 10px;">
+            "The best appointment booking experience! Super easy and quick." <br> <strong>- Alex M.</strong>
+        </p>
+        <p style="font-size: 16px; font-style: italic; margin-top: 10px;">
+            "Great service! Found a top-rated doctor near me in minutes." <br> <strong>- Sarah L.</strong>
+        </p>
+    </div>
+</section>
+
+<!-- Fade-in Animation -->
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
+    <section style="background-color:white; padding: 40px 20px; color:rgb(7, 6, 6); text-align: center;">
+        <div style="max-width: 1200px; margin: auto;">
+            <h3 style="font-size: 24px; margin-bottom: 20px;">Effortlessly Manage Your Healthcare Appointments</h3>
+            <p style="font-size: 18px; margin-bottom: 30px;">Our intuitive MedCare App Allotment Slot Booking System allows both new and existing users to easily schedule appointments tailored to their needs.</p>
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;">
+                <div style="flex: 1; min-width: 250px; max-width: 300px; text-align: center;">
+                    <img src="https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/a9ccc6e2-7559-4fde-c72c-499845d1e800/publicContain" style="width: 100%; border-radius: 8px;">
+                    <h4 style="margin-top: 10px; font-size: 20px;">Quick Appointment Access</h4>
+                    <p style="font-size: 16px;">Log in to view your existing appointments or select a new slot with your preferred doctor.</p>
+                </div>
+                <div style="flex: 1; min-width: 250px; max-width: 300px; text-align: center;">
+                    <img src="https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/28a8a5d3-5329-482e-6109-c052613dfe00/public" style="width: 100%; border-radius: 8px;">
+                    <h4 style="margin-top: 10px; font-size: 20px;">User-Friendly Sign-Up</h4>
+                    <p style="font-size: 16px;">New users can easily register through our Sign-Up page, gaining access to all features.</p>
+                </div>
+                <div style="flex: 1; min-width: 250px; max-width: 300px; text-align: center;">
+                    <img src="https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/6892f5e0-c94b-48ec-c684-2070d8a26f00/public" style="width: 100%; border-radius: 8px;">
+                    <h4 style="margin-top: 10px; font-size: 20px;">Comprehensive Slot Booking</h4>
+                    <p style="font-size: 16px;">Access all available time slots for your chosen doctors, ensuring you receive timely healthcare.</p>
+                </div>
+                <div style="flex: 1; min-width: 250px; max-width: 300px; text-align: center;">
+                    <img src="https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/046cb921-7d45-405c-9a71-4bebf95e9e00/publicContain" style="width: 100%; border-radius: 8px;">
+                    <h4 style="margin-top: 10px; font-size: 20px;">24/7 Support</h4>
+                    <p style="font-size: 16px;">Need assistance? Our Contact page provides all the support you require.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+<!-- Appointment Booking Section -->
+<section style="display: flex; justify-content: space-between; align-items: center; padding: 40px; max-width: 1200px; margin: auto;">
+
+    <!-- Left Side: Text & Map -->
+    <div style="flex: 1; padding-right: 40px;">
+        <h1 style="font-size: 36px; font-weight: bold; color: #0A1F44; margin-bottom: 10px;">
+            Schedule Your <br>Appointments with Ease
+        </h1>
+        <p style="font-size: 16px; color: #4A4A4A; line-height: 1.6;">
+            Efficiently coordinate your healthcare needs with the MedCare App Allotment Slot Booking System. 
+            Enjoy a seamless booking process designed for both returning users and new registrants. 
+            Log in or create an account to get started.
+        </p>
+        <!-- Google Map -->
+        <div style="margin-top: 20px;">
+            <iframe 
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d24177.13404457296!2d-105.28385288744888!3d40.01498559749213!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x876bee69b26f0d69%3A0xa0baf6e14206f5b7!2sBoulder%2C%20CO!5e0!3m2!1sen!2sus!4v1616632314471!5m2!1sen!2sus"
+                width="350" height="200" style="border:0; border-radius: 10px;" allowfullscreen="" loading="lazy">
+            </iframe>
+        </div>
+    </div>
+
+    <!-- Right Side: Form -->
+    <div style="flex: 1; background: #0057D9; padding: 30px; border-radius: 10px; color: white;">
+        <input type="text" id="name" placeholder="Your Name" 
+            style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 5px; border: none; font-size: 14px;">
+        <input type="email" id="email" placeholder="Your Email" 
+            style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 5px; border: none; font-size: 14px;">
+        <input type="tel" id="phone" placeholder="Your Phone" 
+            style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 5px; border: none; font-size: 14px;">
+        <textarea id="message" placeholder="Describe Your Appointment Needs" 
+            style="width: 100%; padding: 12px; height: 100px; border-radius: 5px; border: none; font-size: 14px;"></textarea>
+        
+        <button id="submit-btn" onclick="validateForm()" 
+            style="width: 100%; background: #002F6C; color: white; padding: 12px; margin-top: 15px; border-radius: 5px; font-size: 16px; border: none; cursor: pointer;">
+            SUBMIT YOUR INQUIRY
+        </button>
+        
+        <p id="success-msg" style="display: none; text-align: center; font-size: 16px; margin-top: 15px; color: #00ff00; font-weight: bold;">
+            ✅ INQUIRY Request Sent Successfully!
+        </p>
+    </div>
+
+</section>
+
+<script>
+    function validateForm() {
+        let name = document.getElementById("name").value.trim();
+        let email = document.getElementById("email").value.trim();
+        let phone = document.getElementById("phone").value.trim();
+        let message = document.getElementById("message").value.trim();
+        let button = document.getElementById("submit-btn");
+        let successMsg = document.getElementById("success-msg");
+
+        if (name && email && phone && message) {
+            // Button animation effect
+            button.style.background = "#00ff00";
+            button.innerText = "✅ SUBMITTED";
+            button.style.animation = "scaleUp 0.5s ease-in-out";
+            
+            // Show success message
+            successMsg.style.display = "block";
+
+            // Reset the button after 3 seconds
+            setTimeout(() => {
+                button.style.background = "#002F6C";
+                button.innerText = "SUBMIT YOUR INQUIRY";
+                successMsg.style.display = "none";
+            }, 3000);
+        } else {
+            alert("Please fill in all fields before submitting!");
+        }
+    }
+</script>
+
+<style>
+@keyframes scaleUp {
+    from { transform: scale(1); }
+    to { transform: scale(1.1); }
+}
+</style>
+
+
+
+<!-- Footer Section -->
+<section style="background: black; color: white; padding: 40px; text-align: center; display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap;">
+    
+    <!-- Left Content -->
+    <div style="max-width: 500px; text-align: left;">
+        <h2 style="margin-bottom: 10px;">MedCare App Allotment Slot Booking System</h2>
+        <p style="font-size: 14px; line-height: 1.6;">
+            MedCare App Allotment offers a user-friendly platform for booking appointment slots with doctors based on your preferred dates and times. Our system is designed for both new and existing users, ensuring easy navigation and satisfaction.
+        </p>
+        <!-- Social Media Icons -->
+        <div style="margin-top: 20px;">
+            <a href="https://www.facebook.com" target="_blank" style="text-decoration: none; margin: 0 10px;">
+                <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" style="width: 30px; height: 30px;">
+            </a>
+            <a href="https://www.twitter.com" target="_blank" style="text-decoration: none; margin: 0 10px;">
+                <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" alt="Twitter" style="width: 30px; height: 30px;">
+            </a>
+            <a href="https://www.instagram.com" target="_blank" style="text-decoration: none; margin: 0 10px;">
+                <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" style="width: 30px; height: 30px;">
+            </a>
+        </div>
+    </div>
+
+    <!-- Right Navigation -->
+    <div style="text-align: left;">
+        <h3 style="border-bottom: 2px solid blue; display: inline-block; padding-bottom: 5px;">Navigation</h3>
+        <ul style="list-style: none; padding: 0; margin-top: 10px;">
+            <li><a href="#" style="text-decoration: none; color: white; font-size: 16px;">Home</a></li>
+            <li><a href="/login" style="text-decoration: none; color: white; font-size: 16px;">Login</a></li>
+            <li><a href="/signup" style="text-decoration: none; color: white; font-size: 16px;">Sign-Up</a></li>
+            <li><a href="/booking" style="text-decoration: none; color: white; font-size: 16px;">Slot Booking</a></li>
+            <li><a href="/contact" style="text-decoration: none; color: white; font-size: 16px;">Contact</a></li>
+        </ul>
+    </div>
+</section>
+
+<!-- Copyright Footer -->
+<footer style="background: black; color: gray; text-align: center; padding: 10px; border-top: 1px solid gray;">
+    © 2025 MedCare App Allotment Slot Booking System, All Rights Reserved
+</footer>
+</body>
+</html>

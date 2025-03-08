@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h1 class="dashboard-title">Admin Dashboard - Doctor Management</h1>
+
+<div class="doctor-form">
+    <h2>Add Doctor</h2>
+    <form id="addDoctorForm">
+        <input type="text" id="name" placeholder="Doctor Name" required>
+        <input type="text" id="department" placeholder="Department" required>
+        <input type="text" id="slots" placeholder="Available Slots (comma-separated)" required>
+        <button type="submit" class="add-btn">Add Doctor</button>
+    </form>
+</div>
+
+<h2 class="list-title">Doctor List</h2>
+<div id="doctorList">
+    {% set grouped_doctors = {} %}
+    {% for doctor in doctors %}
+        {% set _ = grouped_doctors.setdefault(doctor['department'], []).append(doctor) %}
+    {% endfor %}
+
+    {% for department, doctors_in_dept in grouped_doctors.items() %}
+    <div class="department-card">
+        <h3>{{ department }}</h3>
+        {% for doctor in doctors_in_dept %}
+        <div class="doctor-card">
+            <div class="doctor-details">
+                <strong>{{ doctor['name'] }}</strong>
+                <div class="slots-container">
+                    {% for slot in doctor['available_slots'] %}
+                        <span class="slot-box">{{ slot }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <button class="delete-btn" onclick="deleteDoctor({{ doctor['id'] }})">❌ Delete</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

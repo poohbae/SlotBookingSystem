@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<nav style="color: black; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; position: relative;">
+    <h2 style="margin: 0;">Welcome, {{ username }} 😊</h2>
+    <span style="position: absolute; right: 20px; font-size: 20px; color: #ffeb3b;"></span>
+</nav>
+
+<header style="text-align: center; margin-top: 20px;">
+    <h1>Your Appointments</h1>
+    <p>View and manage your booked slots.</p>
+</header>
+
+<section style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px;">
+    {% if appointments %}
+        {% for appointment in appointments %}
+        <div style="background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; animation: fadeIn 1s ease-in-out; max-width: 300px;" id="appointment-{{ appointment['id'] }}">
+            <h3 style="font-size: 18px; margin-bottom: 10px;">📅 Date: {{ appointment['date'] }}</h3>
+            <p style="font-size: 14px; margin: 5px 0;">⏰ Time: {{ appointment['time'] }}</p>
+            <p style="font-size: 14px; margin: 5px 0;">👨‍⚕️ Name: {{ appointment['name'] }}</p>
+            <p style="font-size: 14px; margin: 5px 0;">🏥 Ph. No.: {{ appointment['phone_number'] }}</p>
+            <button onclick="cancelAppointment(this)" 
+        data-date="{{ appointment['date'] }}" 
+        data-time="{{ appointment['time'] }}" 
+        data-doctor="{{ appointment['name'] }}" 
+        data-department="{{ appointment['phone_number'] }}"
+        style="background-color: #ff5733; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; transition: background-color 0.3s ease, transform 0.3s ease;">
+    Cancel
+</button>
+
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="text-align: center; font-size: 18px; color: #888;">😞 No appointments booked yet.</p>
+    {% endif %}
+</section>
+
+{% if message %}
+<div style="padding: 15px; margin-top: 20px; text-align: center; border-radius: 5px; background-color: #4CAF50; color: white;">
+    <p>{{ message }}</p>
+</div>
+{% elif error %}
+<div style="padding: 15px; margin-top: 20px; text-align: center; border-radius: 5px; background-color: #f44336; color: white;">
+    <p>❌ {{ error }}</p>
+</div>
+{% endif %}
+
+<script>
+    function cancelAppointment(button) {
+    if (!confirm("Are you sure you want to cancel this appointment?")) {
+        return;
+    }
+
+    // Get details from button attributes
+    let appointmentDetails = {
+        date: button.getAttribute("data-date"),
+        time: button.getAttribute("data-time"),
+        name: button.getAttribute("data-name"),
+        phone_number: button.getAttribute("data-phone_number")
+    };
+
+    console.log("Cancelling appointment with details:", appointmentDetails);
+
+    fetch('/cancel_booking', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(appointmentDetails)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert("Appointment cancelled successfully!");
+            button.parentElement.remove(); // Remove the appointment card
+        } else {
+            alert("Error: " + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert("There was an error while cancelling the appointment.");
+    });
+}
+
+</script>
+
+{% endblock %}
