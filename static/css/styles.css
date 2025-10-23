@@ -1,4 +1,13 @@
 /* General Styles */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    scroll-behavior: smooth;
+}
+
 body {
     font-family: 'Poppins', sans-serif;
     margin: 0;
@@ -7,70 +16,99 @@ body {
     background-size: cover;
     color: black;
     text-align: center;
-    padding-top: 70px;
+    padding-top: 120px;
 }
 
-/* Navbar */
+.content {
+    flex: 1;
+    display: block; /* Normal flow for multi-section pages like home */
+}
+
+.content.centered {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* === NAVBAR BASE === */
 .navbar {
     position: fixed;
     top: 0;
     left: 0;
-    width: 98%;
+    width: 95%;
+    padding: 15px 50px;
+    background: white;
+    color: navy;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 20px;
-    min-height: 60px;
-    background: white;
-    color: navy;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     z-index: 1000;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
-.navbar h2 {
-    color: navy;
-    margin: 0 10px 0 0;
-}
-
-.navbar .logo {
-    width: 20px;
-    height: 20px;
-}
-
-.navbar ul {
-    list-style: none;
-    display: flex;
-    gap: 20px;
-    padding: 0;
-    margin: 0;
-}
-
-.navbar ul li {
-    display: inline;
-}
-html {
-    scroll-behavior: smooth;
-}
-
-.navbar ul li a {
-    text-decoration: none;
+/* === BRAND === */
+.navbar-brand {
+    font-size: 1.8rem;
     color: navy;
     font-weight: bold;
-    transition: color 0.3s, transform 0.3s;
+    letter-spacing: 1px;
+    font-style: italic;
 }
 
-.navbar ul li a:hover {
-    color: #998b0b;
-    transform: scale(1.1);
+/* === NAV MENU === */
+.nav-menu {
+    list-style: none;
+    display: flex;
+    gap: 25px;
+    margin: 0;
+    padding: 0;
 }
 
-.navbar button, .navbar .logout-button {
-    padding: 8px 12px;
-    font-size: 14px;
-    border: none;
+.nav-menu li {
+    display: inline-block;
+}
+
+/* === NAV LINKS === */
+.nav-btn {
+    text-decoration: none;
+    color: navy;
+    font-weight: 600;
+    font-size: 1rem;
+    font-style: italic;
+    letter-spacing: 0.5px;
+    transition: color 0.3s, transform 0.3s, background 0.3s;
+    padding: 8px 16px;
+    border-radius: 8px;
+}
+
+/* === HOVER EFFECT === */
+.nav-btn:hover {
+    color: white;
+    background: #f8b400;
+    transform: scale(1.08);
+}
+
+/* === LOGIN & LOGOUT BUTTONS === */
+.login-btn {
     background: navy;
     color: white;
-    cursor: pointer;
-    border-radius: 5px;
+    border: 2px solid navy;
+}
+
+.login-btn:hover {
+    background: #12232E;
+    border-color: #12232E;
+}
+
+.logout-btn {
+    background: #f44336;
+    color: white;
+    border: 2px solid #f44336;
+}
+
+.logout-btn:hover {
+    background: #d32f2f;
 }
 
 /* Forms and Containers */
@@ -97,22 +135,64 @@ html {
 
 input, select {
     width: 90%;
-    padding: 10px;
+    padding: 12px;
     margin: 10px 0;
-    border: none;
-    border-radius: 5px;
+    border: 2px solid rgba(255, 255, 255, 0.6); /* Light border for visibility */
+    background: rgba(255, 255, 255, 0.8); /* Softer white background */
+    border-radius: 8px;
     font-size: 1rem;
-    transition: box-shadow 0.3s;
+    color: #222; /* Darker text for contrast */
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+input::placeholder {
+    color: #666; /* Make placeholder text readable */
+    font-style: italic;
 }
 
 input:focus, select:focus {
     outline: none;
-    box-shadow: 0px 0px 8px rgba(255, 235, 59, 0.6);
+    border-color: #ffeb3b; /* Yellow highlight */
+    box-shadow: 0px 0px 10px rgba(255, 235, 59, 0.8);
+    background: #fff; /* Brighten when focused */
+}
+
+select option[disabled] {
+    color: #999;
+    background-color: #f0f0f0;
+}
+
+/* Ensure labels appear on their own line (fix inline issue) */
+.booking-container form label {
+    display: block;
+    width: 90%;          /* match input width */
+    margin-top: 10px;
+    font-weight: bold;
+    color: #222;
+    text-align: left;
+    margin-left: 5%;     /* centers it same as inputs */
+}
+
+/* Ensure all form elements inside booking form are the same width */
+.booking-container form input,
+.booking-container form select {
+    width: 90%;                /* consistent width */
+    max-width: 400px;          /* optional limit */
+    padding: 12px;
+    margin: 10px 0;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    font-size: 1rem;
+    color: #222;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
 }
 
 /* Buttons */
 button, .btn {
-    width: 100%;
+    width: 50%;
     padding: 12px;
     background: #ffeb3b;
     color: #333;
@@ -122,6 +202,7 @@ button, .btn {
     cursor: pointer;
     transition: background 0.3s, transform 0.3s;
     font-size: 1rem;
+    margin-top: 10px;
 }
 
 button:hover, .btn:hover {
@@ -133,17 +214,17 @@ button:active {
     transform: scale(0.98);
 }
 
-/* Dashboard & Booking Pages */
-.dashboard-content, .appointments-container {
+/* Dashboard Pages */
+.appointments-container {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 20px;
-    margin-top: 30px;
+    margin-bottom: 30px;
 }
 
 /* Cards */
-.card, .appointment-card {
+.appointment-card {
     background: rgba(255, 255, 255, 0.15);
     padding: 20px;
     border-radius: 15px;
@@ -154,7 +235,7 @@ button:active {
     animation: slideUp 1s ease-in-out;
 }
 
-.card:hover, .appointment-card:hover {
+.appointment-card:hover {
     transform: scale(1.05);
 }
 
@@ -185,43 +266,6 @@ button:active {
     to { transform: translateY(0); opacity: 1; }
 }
 
-/* Contact Section */
-.contact-section {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 50px 0;
-}
-
-.contact-container {
-    display: flex;
-    flex-direction: row;
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-    max-width: 900px;
-    width: 100%;
-    overflow: hidden;
-}
-
-.contact-info, .contact-form {
-    padding: 30px;
-    width: 50%;
-}
-
-.contact-info {
-    background: #20bf6b;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.contact-form form {
-    display: flex;
-    flex-direction: column;
-}
-
 .form-group {
     position: relative;
     margin-bottom: 30px;
@@ -248,10 +292,85 @@ button:active {
     pointer-events: none;
 }
 
-/* Flash Messages */
-.flash-messages {
-    margin-top: 15px;
+.add-btn {
+    width: 100%;
+    background: #007bff;
+    color: white;
+    font-weight: bold;
+    border: none;
+    padding: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.add-btn:hover { background: #0056b3; }
+
+.list-title {
     text-align: center;
+    margin-top: 40px;
+}
+
+.doctor-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: white;
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin: 10px auto;
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.doctor-info p { margin: 3px 0; }
+.delete-btn {
+    background: #ff4444;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.delete-btn:hover { background: #cc0000; }
+
+/* Flash Messages */
+.flash-container {
+    position: fixed;
+    top: 120px; /* just below navbar */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    width: 80%;
+    max-width: 500px;
+    text-align: center;
+}
+
+.flash-message {
+    margin: 10px auto;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    font-size: 1rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    animation: fadeIn 0.6s ease;
+}
+
+/* Category colors */
+.flash-message.success {
+    background-color: #4ffb77; /* Green */
+}
+
+.flash-message.error {
+    background-color: #f97b88; /* Red */
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .success-message {
@@ -260,6 +379,6 @@ button:active {
 }
 
 .error-message {
-    background-color: #f44336;
+    background-color: #FF5733;
     color: white;
 }

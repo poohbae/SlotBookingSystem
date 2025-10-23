@@ -1,155 +1,129 @@
 {% extends "base.html" %}
-
-{% block title %}Booking{% endblock %}
-
+{% block title %}Book Appointment{% endblock %}
+{% block content_class %}centered{% endblock %}
 {% block content %}
-<!-- Set full page background color -->
-<style>
-    body {
-        background-color: #f4f4f4;
-    }
-</style>
 
-<div style="max-width: 600px; margin: 20px auto; padding: 15px; 
-            background: #ffffff; border-radius: 8px; 
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.1); text-align: center;">
+<div class="booking-container">
+    <header class="booking-header">
+        <h1>Book Your Appointment</h1>
+        <p>Select your specialization, doctor, and available time slot.</p>
+    </header>
 
-    <div style="display: flex; align-items: center; gap: 12px; justify-content: center;">
+    <form action="/booking" method="POST" style="max-width: 500px; margin: auto;">
+        
+        <!-- Specialization -->
+        <label for="specialization">Specialization:</label>
+        <select id="specialization" name="specialization" required>
+            <option value="">Select Specialization</option>
+            {% for spec in specializations %}
+                <option value="{{ spec }}">{{ spec }}</option>
+            {% endfor %}
+        </select>
 
-        <!-- Assistant Icon -->
-        <img src="https://cdn-icons-png.flaticon.com/512/2922/2922510.png" 
-             alt="Assistant" 
-             style="width: 40px; height: 40px; animation: fadeIn 2s;">
+        <!-- Doctor -->
+        <label for="doctor">Doctor:</label>
+        <select id="doctor" name="doctor_id" required>
+            <option value="">Select Doctor</option>
+        </select>
 
-        <!-- Animated Text -->
-        <p id="availability-info" style="font-size: 14px; color: #333; line-height: 1.6;
-                opacity: 0; animation: fadeIn 2s forwards;">
-            <b>Hello! 😊</b> Here’s our appointment schedule:  
-            <br>
-            ✅ Slots are available every <b>30 minutes</b>  
-            <img src="https://cdn-icons-png.flaticon.com/512/1828/1828817.png" width="14px" alt="Clock Icon">  
-            from <b>10:00 AM</b> to <b>5:00 PM</b>.  
-            <br>
-            🚫 <b style="color: red;">1:00 PM - 2:00 PM</b> is our <b>break time</b>, so bookings are unavailable then.  
-            <br>
-            🎯 <b>Plan ahead and book your slot now!</b>  
-        </p>
-    </div>
+        <!-- Date -->
+        <label for="date">Date:</label>
+        <input type="date" id="date" name="date" required min="">
+
+        <!-- Time -->
+        <label for="time">Select Time Slot:</label>
+        <select id="time" name="time" required>
+            <option value="">Select a doctor & date first</option>
+        </select>
+
+        <button type="submit" class="btn">Confirm Booking</button>
+    </form>
 </div>
 
-<!-- Animation Styles -->
-<style>
-@keyframes fadeIn {
-    0% { opacity: 0; transform: translateY(-10px); }
-    100% { opacity: 1; transform: translateY(0); }
-}
-</style>
-    <div class="booking-container">
-        <header class="booking-header">
-            <h1>Book Your Appointment</h1>
-            <p>Select a time slot, confirm your booking.</p>
-        </header>
+<!-- JavaScript -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("📅 Booking Page Loaded");
 
-        <section class="booking-form">
-            <form action="/booking" method="POST">
-                <label for="name">Full Name:</label>
-                <input type="text" id="name" name="name" required>
+    const specializationDropdown = document.getElementById("specialization");
+    const doctorDropdown = document.getElementById("doctor");
+    const dateInput = document.getElementById("date");
+    const timeDropdown = document.getElementById("time");
 
-                <label for="phone">Phone Number:</label>
-                <input type="tel" id="phone" name="phone_number" pattern="[0-9]{10}" required placeholder="Enter 10-digit phone number">
-                
-                <!-- <label for="department">Department:</label>
-                <select id="department" name="department" required>
-                    <option value="Cardiology">Cardiology</option>
-                    <option value="Dermatology">Dermatology</option>
-                    <option value="Neurology">Neurology</option>
-                    <option value="Orthopedics">Orthopedics</option>
-                    <option value="Pediatrics">Pediatrics</option>
-                    <option value="Psychiatry">Psychiatry</option>
-                </select> -->
+    // Prevent selecting past dates
+    const today = new Date().toISOString().split("T")[0];
+    dateInput.setAttribute("min", today);
 
-                <!-- <label for="doctor">Doctor:</label> -->
-                <!-- <select id="doctor" name="doctor" required>
-                    <option value="Dr. Smith">Dr. Smith</option>
-                    <option value="Dr. Johnson">Dr. Johnson</option>
-                    <option value="Dr. Lee">Dr. Lee</option>
-                    <option value="Dr. Brown">Dr. Brown</option>
-                </select> -->
+    // Load doctors when specialization changes
+    specializationDropdown.addEventListener("change", () => {
+        const specialization = specializationDropdown.value;
+        doctorDropdown.innerHTML = "<option>Loading...</option>";
 
-                <label for="date">Date:</label>
-                <input type="date" id="date" name="date" required>
+        fetch(`/get_doctors/${encodeURIComponent(specialization)}`)
+            .then(res => res.json())
+            .then(data => {
+                doctorDropdown.innerHTML = '<option value="">Select Doctor</option>';
+                if (data.length === 0) {
+                    doctorDropdown.innerHTML = '<option disabled>No doctors available for this specialization</option>';
+                    return;
+                }
+                data.forEach(doc => {
+                    doctorDropdown.innerHTML += `<option value="${doc.doctor_id}">Dr. ${doc.name}</option>`;
+                });
+            })
+            .catch(() => {
+                doctorDropdown.innerHTML = '<option>Error loading doctors</option>';
+            });
+    });
 
-                <label for="time">Select Time Slot:</label>
-                        <select id="time" name="time" required>
-                            <option value="10:00 AM">10:00 AM</option>
-                            <option value="10:30 AM">10:30 AM</option>
-                            <option value="11:00 AM">11:00 AM</option>
-                            <option value="11:30 AM">11:30 AM</option>
-                            <option value="12:00 PM">12:00 PM</option>
-                            <option value="12:30 PM">12:30 PM</option>
-                            <option value="02:00 PM">02:00 PM</option>
-                            <option value="02:30 PM">02:30 PM</option>
-                            <option value="03:00 PM">03:00 PM</option>
-                            <option value="03:30 PM">03:30 PM</option>
-                            <option value="04:00 PM">04:00 PM</option>
-                            <option value="04:30 PM">04:30 PM</option>
-                            <option value="05:00 PM">05:00 PM</option>
-                        </select>
-                    
-
-                <button type="submit" class="btn">Confirm Booking</button>
-            </form>
-        </section>
-
-        {% if success %}
-        <div class="success-message">
-            <p>✅ Appointment booked successfully with <strong>{{ doctor }}</strong> from <strong>{{ department }}</strong> department on <strong>{{ date }}</strong> at <strong>{{ time }}</strong>.</p>
-        </div>
-
-        {% elif error %}
-        <div class="error-message">
-            <p>❌ {{ error }}</p>
-        </div>
-        {% endif %}
-    </div>
-    <style>
-        /* Animation styles */
-        .success-message, .error-message {
-            display: none;
-            opacity: 0;
-            transform: translateY(-20px);
-            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-            padding: 15px;
-            margin-top: 20px;
-            text-align: center;
-            border-radius: 5px;
+    // Fetch and update available time slots
+    function updateTimeSlots() {
+        const doctorId = doctorDropdown.value;
+        const date = dateInput.value;
+        if (!doctorId || !date) {
+            timeDropdown.innerHTML = '<option>Select doctor and date first</option>';
+            return;
         }
 
-        .success-message {
-            background-color: #4CAF50;
-            color: white;
-        }
+        timeDropdown.innerHTML = '<option>Loading...</option>';
 
-        .error-message {
-            background-color: #FF5733;
-            color: white;
-        }
+        fetch(`/get_available_slots/${doctorId}/${encodeURIComponent(date)}`)
+            .then(res => res.json())
+            .then(data => {
+                const allSlots = [
+                    "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+                    "12:00 PM", "12:30 PM",
+                    "02:00 PM", "02:30 PM", "03:00 PM",
+                    "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM"
+                ];
+                timeDropdown.innerHTML = "";
 
-        /* Button hover effect */
-        .btn {
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s ease-in-out;
-        }
+                if (data.booked.length === allSlots.length) {
+                    timeDropdown.innerHTML = '<option disabled>All slots are booked for this day 😞</option>';
+                    return;
+                }
 
-        .btn:hover {
-            background-color: #0056b3;
-        }
-    </style>
+                allSlots.forEach(slot => {
+                    const isBooked = data.booked.includes(slot);
+                    const option = document.createElement("option");
+                    option.value = slot;
+                    option.textContent = slot;
+                    if (isBooked) {
+                        option.disabled = true;
+                        option.style.color = "gray";
+                    }
+                    timeDropdown.appendChild(option);
+                });
+            })
+            .catch(() => {
+                timeDropdown.innerHTML = '<option>Error loading time slots</option>';
+            });
+    }
 
-    
+    // Update slots whenever doctor or date changes
+    doctorDropdown.addEventListener("change", updateTimeSlots);
+    dateInput.addEventListener("change", updateTimeSlots);
+});
+</script>
+
 {% endblock %}

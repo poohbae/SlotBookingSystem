@@ -1,45 +1,114 @@
 {% extends "base.html" %}
-
 {% block title %}Admin Dashboard{% endblock %}
-
+{% block content_class %}centered{% endblock %}
 {% block content %}
-<h1 class="dashboard-title">Admin Dashboard - Doctor Management</h1>
 
+<h1 class="dashboard-title">Admin Dashboard – Doctor Management</h1>
+
+<!-- Add Doctor Form -->
 <div class="doctor-form">
-    <h2>Add Doctor</h2>
+    <h2>Add New Doctor</h2>
     <form id="addDoctorForm">
         <input type="text" id="name" placeholder="Doctor Name" required>
-        <input type="text" id="department" placeholder="Department" required>
-        <input type="text" id="slots" placeholder="Available Slots (comma-separated)" required>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="text" id="phone_number" placeholder="Phone Number" required>
+        <input type="text" id="specialization" placeholder="Specialization (e.g., Cardiology)" required>
+        <input type="number" id="experience" placeholder="Years of Experience" min="0" required>
         <button type="submit" class="add-btn">Add Doctor</button>
     </form>
 </div>
 
-<h2 class="list-title">Doctor List</h2>
+<!-- Doctor List -->
+<h2 class="list-title">Registered Doctors</h2>
 <div id="doctorList">
-    {% set grouped_doctors = {} %}
-    {% for doctor in doctors %}
-        {% set _ = grouped_doctors.setdefault(doctor['department'], []).append(doctor) %}
-    {% endfor %}
-
-    {% for department, doctors_in_dept in grouped_doctors.items() %}
-    <div class="department-card">
-        <h3>{{ department }}</h3>
-        {% for doctor in doctors_in_dept %}
+    {% if doctors %}
+        {% for doc in doctors %}
         <div class="doctor-card">
-            <div class="doctor-details">
-                <strong>{{ doctor['name'] }}</strong>
-                <div class="slots-container">
-                    {% for slot in doctor['available_slots'] %}
-                        <span class="slot-box">{{ slot }}</span>
-                    {% endfor %}
-                </div>
+            <div class="doctor-info">
+                <strong>Dr. {{ doc['name'] }}</strong>
+                <p><b>Specialization:</b> {{ doc['specialization'] }}</p>
+                <p><b>Experience:</b> {{ doc['experience_years'] }} years</p>
+                <p><b>Phone:</b> {{ doc['phone_number'] }}</p>
+                <p><b>Email:</b> {{ doc['email'] }}</p>
             </div>
-            <button class="delete-btn" onclick="deleteDoctor({{ doctor['id'] }})">❌ Delete</button>
+            <button class="delete-btn" data-id="{{ doc['doctor_id'] }}">❌ Delete</button>
         </div>
         {% endfor %}
-    </div>
-    {% endfor %}
+    {% else %}
+        <p style="text-align: center; color: gray;">No doctors added yet.</p>
+    {% endif %}
 </div>
 
+<!-- JS -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("🩺 Admin Dashboard Loaded");
+
+    const addForm = document.getElementById("addDoctorForm");
+
+    // ✅ Add doctor
+    addForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const doctorData = {
+            name: document.getElementById("name").value.trim(),
+            email: document.getElementById("email").value.trim(),
+            phone_number: document.getElementById("phone").value.trim(),
+            password: document.getElementById("password").value.trim(),
+            specialization: document.getElementById("specialization").value.trim(),
+            experience_years: Number(document.getElementById("experience").value)
+        };
+
+        if (!doctorData.name || !doctorData.email || !doctorData.password) {
+            alert("⚠️ Please fill in all required fields.");
+            return;
+        }
+
+        fetch('/add_doctor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(doctorData)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert("✅ Doctor added successfully!");
+                location.reload();
+            } else {
+                alert("❌ Error: " + (data.error || "Failed to add doctor."));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("⚠️ Server error while adding doctor.");
+        });
+    });
+
+    // ✅ Delete doctor
+    document.addEventListener("click", (event) => {
+        if (event.target.classList.contains("delete-btn")) {
+            const doctorId = event.target.dataset.id;
+            if (!confirm("Are you sure you want to delete this doctor?")) return;
+
+            fetch('/delete_doctor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ doctor_id: Number(doctorId) })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert("🗑️ Doctor deleted successfully!");
+                    location.reload();
+                } else {
+                    alert("❌ Error: " + (data.error || "Failed to delete doctor."));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("⚠️ Server error while deleting doctor.");
+            });
+        }
+    });
+});
+</script>
 {% endblock %}

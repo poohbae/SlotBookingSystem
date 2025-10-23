@@ -1,277 +1,319 @@
 from flask import Flask, render_template, flash, request, redirect, url_for, session, jsonify
 import sqlite3
 
+DB_PATH = 'db_folder/app.db'
+
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Required for session handling
+app.secret_key = 'my_super_secret_key_12345'
 
-
-# Function to get a database connection
-def get_db_connection(db_name):
-    conn = sqlite3.connect(db_name)
-    conn.row_factory = sqlite3.Row  # Enables dictionary-like row access
+# DB helpers
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     return conn
 
-
-# Function to validate login
-def validate_login(username, password):
-    conn = get_db_connection('db_folder/database_new.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-    user = cursor.fetchone()
-    conn.close()
-    return user
-
-
-# Helper Function to Get User Email (for Booking API)
-def get_user_email(username):
-    conn = get_db_connection('db_folder/database_new.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT email FROM users WHERE username = ?", (username,))
-    user_email = cursor.fetchone()
-    conn.close()
-    return user_email['email'] if user_email else None
-
-
-# Home Route
+# Routes
 @app.route("/")
 def home():
     return render_template("home.html")
 
-# Admin Dashboard Route
-@app.route('/admin_dashboard')
-def admin_dashboard():
-    if 'admin' not in session:
-        return redirect(url_for('admin_login'))
-    return render_template("admin_dashboard.html")
-
-# Login Route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username'].strip()
+        email = request.form['email'].strip()
         password = request.form['password'].strip()
 
-        user = validate_login(username, password)
+        conn = get_db_connection()
+        conn.row_factory = sqlite3.Row  # allows access by column name
+        cur = conn.cursor()
+
+        cur.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
+        user = cur.fetchone()
 
         if user:
-            role = user['role'] if 'role' in user.keys() else user.get('roless')  # Handle different role column names
-            session['user'] = user['username']
+            session['user_id'] = user['user_id']
+            session['name'] = user['name']
+            session['role_id'] = user['role_id']  # if using role_id now
 
-            if role == 'admin':  # Redirect admins
-                session['admin'] = user['username']
-                flash("Admin Login successful! ✅", "success")
+            cur.close()
+            conn.close()
+
+            # redirect by role
+            if user['role_id'] == 1:
+                flash("Admin login successful ✅", "success")
                 return redirect(url_for('admin_dashboard'))
-            else:  # Redirect regular users
-                flash("Login successful! ✅", "success")
+            else:
+                flash("Login successful ✅", "success")
                 return redirect(url_for('dashboard'))
         else:
-            flash("Invalid username or password ❌", "error")
+            cur.close()
+            conn.close()
+            flash("Invalid email or password ❌", "error")
+            return redirect(url_for('login'))
 
     return render_template('login.html')
 
-
-# Signup Route
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        username = request.form['username'].strip()
-        password = request.form['password'].strip()
-        email = request.form['email'].strip()
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone_number = request.form.get('phone_number', '').strip()
+        password = request.form.get('password', '').strip()
 
-        conn = get_db_connection('db_folder/database_new.db')
-        cursor = conn.cursor()
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-        # Check if user already exists
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        if cursor.fetchone():
+        # Check if user exists by email OR phone number
+        cur.execute("SELECT 1 FROM users WHERE email = ? OR phone_number = ?", (email, phone_number))
+        if cur.fetchone():
+            cur.close()
             conn.close()
-            flash("User already exists!", "error")
+            flash("⚠️ Email or Phone Number already exists!", "error")
             return render_template('signup.html')
 
         try:
-            role = 'admin' if username.lower() == 'admin' else 'customer'
-            cursor.execute("INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?)",
-                           (username, password, email, role))
+            # Only patients can register via this form
+            cur.execute("""
+                INSERT INTO users (name, email, password, phone_number, role_id)
+                VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'patient'))
+            """, (name, email, password, phone_number))
             conn.commit()
-            flash("Signup successful! ✅ Please login.", "success")
+
+            flash("✅ Signup successful! Please log in.", "success")
             return redirect(url_for('login'))
+
         except sqlite3.IntegrityError:
-            flash("Username or Email already exists!", "error")
+            flash("❌ There was an error during signup. Try again.", "error")
         finally:
+            cur.close()
             conn.close()
 
     return render_template('signup.html')
 
-
-# Dashboard Route
-@app.route('/dashboard')
+@app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    if 'user' not in session:
+    if 'user_id' not in session:
+        flash("Please log in to access your dashboard ❌", "error")
         return redirect(url_for('login'))
 
-    conn = get_db_connection('db_folder/database_new.db')
-    cursor = conn.cursor()
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-    cursor.execute("SELECT email FROM users WHERE username = ?", (session['user'],))
-    user_email = cursor.fetchone()
+    # Fetch appointments for current user
+    cur.execute("""
+        SELECT 
+            a.id AS appointment_id,
+            a.date,
+            a.time,
+            u.name AS doctor_name,
+            d.specialization AS doctor_specialization
+        FROM appointments a
+        JOIN doctors d ON a.doctor_id = d.doctor_id
+        JOIN users u ON d.user_id = u.user_id
+        WHERE a.user_id = ?
+        ORDER BY a.date, a.time
+    """, (session['user_id'],))
+    appointments = cur.fetchall()
 
-    appointments = []
-    if user_email:
-        email = user_email['email']
-        conn_appointments = get_db_connection('db_folder/appointments_database.db')
-        cursor_appointments = conn_appointments.cursor()
+    # Fetch doctor specializations
+    cur.execute("SELECT DISTINCT specialization FROM doctors ORDER BY specialization")
+    specializations = [row['specialization'] for row in cur.fetchall()]
 
-        cursor_appointments.execute("SELECT name, phone_number, date, time FROM appointments WHERE email = ?", (email,))
-        appointments = cursor_appointments.fetchall()
-
-        conn_appointments.close()
-
-    conn.close()
-    return render_template('dashboard.html', username=session['user'], appointments=appointments)
-
-
-# Booking Route
-@app.route('/booking', methods=['GET', 'POST'])
-def booking():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-
-    conn = get_db_connection('db_folder/database_new.db')
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT email FROM users WHERE username = ?", (session['user'],))
-    user_email = cursor.fetchone()
-    conn.close()
-
-    if not user_email:
-        flash("User email not found!", "error")
-        return redirect(url_for('dashboard'))
-
-    email = user_email['email']
-
+    # Handle booking form submission
     if request.method == 'POST':
-        name = request.form.get('name')
-        phone_number = request.form.get('phone_number')
+        specialization = request.form.get('specialization')
+        doctor_id = request.form.get('doctor_id')
         date = request.form.get('date')
-        time = request.form.get('time')
+        time_slot = request.form.get('time')
 
-        if not phone_number:
-            flash("❌ Phone number is required!", "error")
-            return redirect(url_for('booking'))
-
-        conn = get_db_connection('db_folder/appointments_database.db')
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT * FROM appointments WHERE date = ? AND time = ?", (date, time))
-        existing_appointment = cursor.fetchone()
-
-        if existing_appointment:
-            flash("❌ Selected time slot is already booked!", "error")
+        if not all([specialization, doctor_id, date, time_slot]):
+            flash("❌ Please fill in all fields!", "error")
         else:
-            cursor.execute("""
-                INSERT INTO appointments (email, name, phone_number, date, time)
-                VALUES (?, ?, ?, ?, ?)""", (email, name, phone_number, date, time))
-            conn.commit()
-            flash("✅ Appointment booked successfully!", "success")
+            cur.execute("""
+                SELECT 1 FROM appointments
+                WHERE doctor_id = ? AND date = ? AND time = ?
+            """, (doctor_id, date, time_slot))
+            if cur.fetchone():
+                flash("❌ Selected time slot is already booked!", "error")
+            else:
+                cur.execute("""
+                    INSERT INTO appointments (user_id, doctor_id, date, time)
+                    VALUES (?, ?, ?, ?)
+                """, (session['user_id'], doctor_id, date, time_slot))
+                conn.commit()
+                flash("✅ Appointment booked successfully!", "success")
 
+        cur.close()
         conn.close()
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard') + '#book-section')
 
-    return render_template('booking.html')
-
-
-# Cancel Booking Route
-@app.route('/cancel_booking', methods=['POST'])
-def cancel_booking():
-    if 'user' not in session:
-        return jsonify({"success": False, "error": "Not logged in"}), 403
-
-    data = request.get_json()
-    date, time = data.get("date"), data.get("time")
-
-    if not all([date, time]):
-        return jsonify({"success": False, "error": "Missing appointment details"}), 400
-
-    conn = get_db_connection('db_folder/appointments_database.db')
-    cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM appointments WHERE date = ? AND time = ?", (date, time))
-    conn.commit()
+    cur.close()
     conn.close()
+    return render_template(
+        'dashboard.html',
+        name=session.get('name', 'User'),
+        appointments=appointments,
+        specializations=specializations
+    )
 
-    return jsonify({"success": True, "message": "Appointment canceled successfully"})
+@app.route('/get_doctors/<specialization>')
+def get_doctors(specialization):
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-
-# Logout Route
-@app.route('/logout')
-def logout():
-    session.pop('user', None)
-    return redirect(url_for('home'))
-
-
-# API to Fetch Available Slots
-@app.route('/api/available_slots', methods=['GET'])
-def available_slots():
-    if 'user' not in session:
-        return jsonify({"success": False, "error": "Not logged in"}), 403
-
-    date = request.args.get('date')
-    if not date:
-        return jsonify({"success": False, "error": "Date is required"}), 400
-
-    # Fetch booked slots for the given date
-    conn = get_db_connection('db_folder/appointments_database.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT time FROM appointments WHERE date = ?", (date,))
-    booked_slots = {row['time'] for row in cursor.fetchall()}  # Using a set for faster lookup
+    # Join doctor table + user table to get doctor names
+    cur.execute("""
+        SELECT d.doctor_id, u.name
+        FROM doctors d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.specialization = ?
+    """, (specialization,))
+    doctors = [dict(row) for row in cur.fetchall()]
     conn.close()
+    return jsonify(doctors)
 
-    # Define the possible slots (you can customize this based on your requirements)
+@app.route('/get_available_slots/<int:doctor_id>/<date>')
+def get_available_slots(doctor_id, date):
     all_slots = [
-        "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
+        "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+        "12:00 PM", "12:30 PM",
+        "02:00 PM", "02:30 PM", "03:00 PM",
+        "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM"
     ]
 
-    # Filter out the booked slots
-    available_slots = [slot for slot in all_slots if slot not in booked_slots]
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-    return jsonify({"success": True, "available_slots": available_slots})
-
-
-# API to Book an Appointment
-@app.route('/api/book_appointment', methods=['POST'])
-def book_appointment():
-    if 'user' not in session:
-        return jsonify({"success": False, "error": "Not logged in"}), 403
-
-    data = request.get_json()
-    name = data.get('name')
-    phone_number = data.get('phone_number')
-    date = data.get('date')
-    time = data.get('time')
-
-    if not all([name, phone_number, date, time]):
-        return jsonify({"success": False, "error": "All fields are required"}), 400
-
-    # Check if the time slot is available
-    conn = get_db_connection('db_folder/appointments_database.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM appointments WHERE date = ? AND time = ?", (date, time))
-    existing_appointment = cursor.fetchone()
-
-    if existing_appointment:
-        conn.close()
-        return jsonify({"success": False, "error": "Selected time slot is already booked"}), 409
-
-    # Book the appointment
-    user_email = get_user_email(session['user'])
-    cursor.execute("""
-        INSERT INTO appointments (email, name, phone_number, date, time)
-        VALUES (?, ?, ?, ?, ?)""", (user_email, name, phone_number, date, time))
-    conn.commit()
+    cur.execute("SELECT time FROM appointments WHERE doctor_id = ? AND date = ?", (doctor_id, date))
+    booked_slots = [row['time'] for row in cur.fetchall()]
     conn.close()
 
-    return jsonify({"success": True, "message": "Appointment booked successfully"})
+    return jsonify({"booked": booked_slots})
 
+@app.route('/cancel_booking', methods=['POST'])
+def cancel_booking():
+    if 'user_id' not in session:
+        flash("Please log in to access your dashboard ❌", "error")
+        return redirect(url_for('login'))
+
+    data = request.get_json(force=True)
+    appointment_id = data.get("appointment_id")
+
+    if not appointment_id:
+        return jsonify({"success": False, "error": "Missing appointment ID"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Only delete if this appointment belongs to the logged-in user
+    cur.execute("""
+        DELETE FROM appointments
+        WHERE id = ? AND user_id = ?
+    """, (appointment_id, session['user_id']))
+    
+    conn.commit()
+    deleted = cur.rowcount
+    conn.close()
+
+    if deleted:
+        return jsonify({"success": True, "message": "Appointment canceled successfully"})
+    else:
+        return jsonify({"success": False, "error": "Appointment not found or not authorized"}), 404
+
+@app.route('/logout')
+def logout():
+    # Clear all session keys related to the user
+    session.pop('user_id', None)
+    session.pop('name', None)
+    session.pop('role_id', None)
+    
+    flash("You have been logged out successfully ✅", "success")
+    return redirect(url_for('home'))
+
+# ------------------------------
+# Admin Routes
+# ------------------------------
+
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    # Require admin
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM doctors ORDER BY specialization, name")
+    rows = cur.fetchall()
+    conn.close()
+
+    # Convert stored comma text into list for template
+    doctors = []
+    for row in rows:
+        doctors.append({
+            'id': row['id'],
+            'name': row['name'],
+            'specialization': row['specialization'],
+            'available_slots': [s.strip() for s in row['available_slots'].split(',') if s.strip()]
+        })
+
+    return render_template('admin_dashboard.html', doctors=doctors)
+
+@app.route('/add_doctor', methods=['POST'])
+def add_doctor():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    phone_number = data.get('phone_number')
+    specialization = data.get('specialization')
+    experience_years = data.get('experience_years')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Create a new user with doctor role_id (assuming 2 = doctor)
+        cur.execute("""
+            INSERT INTO users (name, email, password, phone_number, role_id)
+            VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'doctor'))
+        """, (name, email, "doctor123", phone_number))
+        user_id = cur.lastrowid
+
+        # Add corresponding doctor record
+        cur.execute("""
+            INSERT INTO doctors (user_id, specialization, experience_years)
+            VALUES (?, ?, ?)
+        """, (user_id, specialization, experience_years))
+
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        conn.close()
+
+@app.route('/delete_doctor', methods=['POST'])
+def delete_doctor():
+    data = request.get_json()
+    doctor_id = data.get('doctor_id')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Delete doctor (cascade removes user too if defined in FK)
+        cur.execute("DELETE FROM doctors WHERE doctor_id = ?", (doctor_id,))
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

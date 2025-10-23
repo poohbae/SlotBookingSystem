@@ -1,90 +1,134 @@
 {% extends "base.html" %}
-
 {% block title %}Dashboard{% endblock %}
-
+{% block content_class %}centered{% endblock %}
 {% block content %}
-<nav style="color: black; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; position: relative;">
-    <h2 style="margin: 0;">Welcome, {{ username }} 😊</h2>
-    <span style="position: absolute; right: 20px; font-size: 20px; color: #ffeb3b;"></span>
-</nav>
 
-<header style="text-align: center; margin-top: 20px;">
-    <h1>Your Appointments</h1>
-    <p>View and manage your booked slots.</p>
-</header>
+<!-- Dashboard Container -->
+<div class="dashboard-container" style="padding: 40px; text-align: center;">
+    <h1 style="color: #0b2e59;">Welcome, {{ name }} 😊</h1>
 
-<section style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px;">
-    {% if appointments %}
-        {% for appointment in appointments %}
-        <div style="background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; animation: fadeIn 1s ease-in-out; max-width: 300px;" id="appointment-{{ appointment['id'] }}">
-            <h3 style="font-size: 18px; margin-bottom: 10px;">📅 Date: {{ appointment['date'] }}</h3>
-            <p style="font-size: 14px; margin: 5px 0;">⏰ Time: {{ appointment['time'] }}</p>
-            <p style="font-size: 14px; margin: 5px 0;">👨‍⚕️ Name: {{ appointment['name'] }}</p>
-            <p style="font-size: 14px; margin: 5px 0;">🏥 Ph. No.: {{ appointment['phone_number'] }}</p>
-            <button onclick="cancelAppointment(this)" 
-        data-date="{{ appointment['date'] }}" 
-        data-time="{{ appointment['time'] }}" 
-        data-doctor="{{ appointment['name'] }}" 
-        data-department="{{ appointment['phone_number'] }}"
-        style="background-color: #ff5733; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; transition: background-color 0.3s ease, transform 0.3s ease;">
-    Cancel
-</button>
+    <!-- Appointments Section -->
+    <section class="appointments-container">
+        {% if appointments %}
+            <p style="color: #444; width: 100%; text-align: center;">Here are your upcoming appointments.</p>
 
-        </div>
-        {% endfor %}
-    {% else %}
-        <p style="text-align: center; font-size: 18px; color: #888;">😞 No appointments booked yet.</p>
-    {% endif %}
-</section>
+            {% for appointment in appointments %}
+            <div class="appointment-card" id="appointment-{{ appointment['appointment_id'] }}">
+                <h3>📅 {{ appointment['date'] }} — {{ appointment['time'] }}</h3>
+                <p>👨‍⚕️ <b>Doctor:</b> {{ appointment['doctor_name'] }}</p>
+                <p>🏥 <b>Specialization:</b> {{ appointment['doctor_specialization'] }}</p>
 
-{% if message %}
-<div style="padding: 15px; margin-top: 20px; text-align: center; border-radius: 5px; background-color: #4CAF50; color: white;">
-    <p>{{ message }}</p>
+                <button class="cancel-btn" data-id="{{ appointment['appointment_id'] }}">
+                    Cancel
+                </button>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p style="font-size: 18px; color: #888; width: 100%; text-align: center;">
+                😞 No appointments booked yet.
+            </p>
+        {% endif %}
+    </section>
+
+    <!-- Booking Section -->
+    <div id="book-section" class="booking-container">
+        <h2 style="color: #0b2e59;">Book a New Appointment</h2>
+        <form method="POST" action="{{ url_for('dashboard') }}">
+            
+            <label for="specialization">Specialization:</label>
+            <select id="specialization" name="specialization" required>
+                <option value="">Select Specialization</option>
+                {% for spec in specializations %}
+                    <option value="{{ spec }}">{{ spec }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="doctor">Doctor:</label>
+            <select id="doctor" name="doctor_id" required>
+                <option value="">Select Doctor</option>
+            </select>
+
+            <label for="date">Date:</label>
+            <input type="date" id="date" name="date" required min="">
+
+            <label for="time">Select Time Slot:</label>
+            <select id="time" name="time" required>
+                <option value="">Select a doctor & date first</option>
+            </select>
+
+            <button type="submit" class="btn">Confirm Booking</button>
+        </form>
+    </div>
 </div>
-{% elif error %}
-<div style="padding: 15px; margin-top: 20px; text-align: center; border-radius: 5px; background-color: #f44336; color: white;">
-    <p>❌ {{ error }}</p>
-</div>
-{% endif %}
 
+<!-- JavaScript -->
 <script>
-    function cancelAppointment(button) {
-    if (!confirm("Are you sure you want to cancel this appointment?")) {
-        return;
+document.addEventListener("DOMContentLoaded", () => {
+    // Smooth scroll if coming from navbar
+    if (window.location.hash === "#book-section") {
+        document.querySelector("#book-section").scrollIntoView({ behavior: "smooth" });
     }
 
-    // Get details from button attributes
-    let appointmentDetails = {
-        date: button.getAttribute("data-date"),
-        time: button.getAttribute("data-time"),
-        name: button.getAttribute("data-name"),
-        phone_number: button.getAttribute("data-phone_number")
-    };
+    // --- Booking logic ---
+    const specializationDropdown = document.getElementById("specialization");
+    const doctorDropdown = document.getElementById("doctor");
+    const dateInput = document.getElementById("date");
+    const timeDropdown = document.getElementById("time");
 
-    console.log("Cancelling appointment with details:", appointmentDetails);
+    const today = new Date().toISOString().split("T")[0];
+    dateInput.min = today;
 
-    fetch('/cancel_booking', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(appointmentDetails)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert("Appointment cancelled successfully!");
-            button.parentElement.remove(); // Remove the appointment card
-        } else {
-            alert("Error: " + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert("There was an error while cancelling the appointment.");
+    specializationDropdown.addEventListener("change", () => {
+        const specialization = specializationDropdown.value;
+        doctorDropdown.innerHTML = "<option>Loading...</option>";
+
+        fetch(`/get_doctors/${encodeURIComponent(specialization)}`)
+            .then(res => res.json())
+            .then(data => {
+                doctorDropdown.innerHTML = '<option value="">Select Doctor</option>';
+                data.forEach(doc => {
+                    doctorDropdown.innerHTML += `<option value="${doc.doctor_id}">Dr. ${doc.name}</option>`;
+                });
+            })
+            .catch(() => doctorDropdown.innerHTML = '<option>Error loading doctors</option>');
     });
-}
 
+    function updateTimeSlots() {
+        const doctorId = doctorDropdown.value;
+        const date = dateInput.value;
+        if (!doctorId || !date) {
+            timeDropdown.innerHTML = '<option>Select doctor and date first</option>';
+            return;
+        }
+        timeDropdown.innerHTML = '<option>Loading...</option>';
+
+        fetch(`/get_available_slots/${doctorId}/${encodeURIComponent(date)}`)
+            .then(res => res.json())
+            .then(data => {
+                const allSlots = [
+                    "10:00 AM","10:30 AM","11:00 AM","11:30 AM",
+                    "12:00 PM","12:30 PM",
+                    "02:00 PM","02:30 PM","03:00 PM","03:30 PM",
+                    "04:00 PM","04:30 PM","05:00 PM"
+                ];
+                timeDropdown.innerHTML = "";
+                allSlots.forEach(slot => {
+                    const option = document.createElement("option");
+                    option.value = slot;
+                    option.textContent = slot;
+                    if (data.booked.includes(slot)) {
+                        option.disabled = true;
+                        option.style.color = "gray";
+                    }
+                    timeDropdown.appendChild(option);
+                });
+            })
+            .catch(() => timeDropdown.innerHTML = '<option>Error loading time slots</option>');
+    }
+
+    doctorDropdown.addEventListener("change", updateTimeSlots);
+    dateInput.addEventListener("change", updateTimeSlots);
+});
 </script>
 
 {% endblock %}
