@@ -49,7 +49,7 @@
             your appointment with just a few clicks. Enjoy a hassle-free healthcare experience!
         </p>
 
-        <a href="{{ url_for('dashboard') }}#book-section" style="text-decoration: none;">
+        <a href="{{ url_for('patient_dashboard') }}#book-section" style="text-decoration: none;">
             <button style="background: #f8b400; color: #12232E; padding: 12px 24px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; margin-top: 5px;">
                 Book an Appointment
             </button>
@@ -87,7 +87,7 @@
         <h3 style="font-size: 24px; margin-bottom: 20px;">Effortlessly Manage Your Healthcare Appointments</h3>
         <p style="font-size: 18px; margin-bottom: 30px;">Our intuitive MedCare App Slot Booking System allows both new and existing users to easily schedule appointments tailored to their needs.</p>
 
-        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 50px;">
             {% set infos = [
                 {'img':'https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/a9ccc6e2-7559-4fde-c72c-499845d1e800/publicContain','title':'Quick Appointment Access','desc':'Log in to view existing appointments or book new ones.'},
                 {'img':'https://imagedelivery.net/xaKlCos5cTg_1RWzIu_h-A/28a8a5d3-5329-482e-6109-c052613dfe00/public','title':'User-Friendly Sign-Up','desc':'New users can easily register to gain access to all features.'},
@@ -96,7 +96,7 @@
             ] %}
             
             {% for i in infos %}
-            <div style="flex: 1; min-width: 250px; max-width: 300px; text-align: center;">
+            <div style="flex: 1; min-width: 280px; max-width: 350px; text-align: center;">
                 <img src="{{ i.img }}" style="width: 100%; border-radius: 8px;">
                 <h4 style="margin-top: 10px; font-size: 20px;">{{ i.title }}</h4>
                 <p style="font-size: 16px;">{{ i.desc }}</p>

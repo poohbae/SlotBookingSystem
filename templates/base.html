@@ -8,15 +8,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-
-    {% block styles %}{% endblock %}
-    <style>
-        /* Smooth hover scale animation */
-        @keyframes scaleUp {
-            from { transform: scale(1); }
-            to { transform: scale(1.1); }
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </head>
 
 <body>
@@ -28,17 +21,34 @@
 
         <div class="navbar-right">
             <ul class="nav-menu">
-                <li><a href="{{ url_for('home') }}" class="nav-btn">Home</a></li>
-                <li><a href="{{ url_for('dashboard') }}" class="nav-btn">View Appointments</a></li>
-                <li><a href="{{ url_for('dashboard') }}#book-section" class="nav-btn">Book Appointment</a></li>
-                {% if session.get('user_id') %}
-                    <li><a href="{{ url_for('logout') }}" class="nav-btn logout-btn">Logout</a></li>
-                {% else %}
+                
+                {# If no user logged in — show Login #}
+                {% if not session.get('user_id') %}
                     <li><a href="{{ url_for('login') }}" class="nav-btn login-btn">Login</a></li>
+
+                {% else %}
+                    {# Admin Navigation #}
+                    {% if session.get('role_id') == 1 %}
+                        <li><a href="{{ url_for('admin_dashboard') }}" class="nav-btn">Home</a></li>
+                        <li><a href="{{ url_for('admin_dashboard') }}#doctorList" class="nav-btn">Manage Doctors</a></li>
+                    {# Doctor Navigation #}
+                    {% elif session.get('role_id') == 2 %}
+                        <li><a href="{{ url_for('doctor_dashboard') }}" class="nav-btn">Home</a></li>
+
+                    {# Patient Navigation #}
+                    {% elif session.get('role_id') == 3 %}
+                        <li><a href="{{ url_for('home') }}" class="nav-btn">Home</a></li>
+                        <li><a href="{{ url_for('patient_dashboard') }}#book-section" class="nav-btn">Book Appointment</a></li>
+                    {% endif %}
+
+                    {# Logout is always visible for logged-in users #}
+                    <li><a href="{{ url_for('profile') }}" class="nav-btn">Profile</a></li>
+                    <li><a href="{{ url_for('logout') }}" class="nav-btn logout-btn">Logout</a></li>
                 {% endif %}
             </ul>
         </div>
     </nav>
+
 
     <!-- Main Content -->
     <main class="content {% block content_class %}{% endblock %}">
@@ -56,10 +66,10 @@
 
     <!-- Footer -->
     <section class="footer-main"
-        style="background: black; color: white; padding: 40px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; text-align: center;">
-        
+        style="background: black; color: white; padding: 40px; display: flex; justify-content: flex-start; align-items: flex-start; gap: 800px; flex-wrap: wrap;">
+
         <!-- Left -->
-        <div style="max-width: 500px; text-align: left;">
+        <div style="max-width: 500px; text-align: left; margin-left: 50px;">
             <h2 style="margin-bottom: 10px;">MedCare App Slot Booking System</h2>
             <p style="font-size: 14px; line-height: 1.6;">
                 MedCare App Allotment offers a user-friendly platform for booking appointment slots 
@@ -69,7 +79,7 @@
         </div>
 
         <!-- Right -->
-        <div style="text-align: left;">
+        <div style="max-width: 450px; text-align: left;">
             <h3 style="border-bottom: 2px solid blue; display: inline-block; padding-bottom: 5px;">Connect with Us</h3>
             <div style="margin-top: 20px; display: flex; gap: 15px; flex-wrap: wrap;">
                 <a href="https://www.facebook.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" style="width: 35px; height: 35px;" /></a>
@@ -84,16 +94,5 @@
     <footer style="background: black; color: gray; text-align: center; padding: 10px; border-top: 1px solid gray;">
         © 2025 MedCare App Slot Booking System — All Rights Reserved
     </footer>
-
-    <script>
-        // Navbar background change on scroll
-        window.addEventListener('scroll', () => {
-            const navbar = document.querySelector('.navbar');
-            navbar.style.background = window.scrollY > 50 ? 'white' : 'transparent';
-        });
-    </script>
-    {% block scripts %}
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-    {% endblock %}
 </body>
 </html>

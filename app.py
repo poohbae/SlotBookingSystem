@@ -1,112 +1,327 @@
-from flask import Flask, render_template, flash, request, redirect, url_for, session, jsonify
-import sqlite3
+import bleach, os, re, sqlite3, pyotp, qrcode, io, hashlib, secrets
+from cryptography.fernet import Fernet
+from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+from flask import Flask, render_template, flash, request, redirect, url_for, session, jsonify, send_file, abort
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
-DB_PATH = 'db_folder/app.db'
+# Load environment variables from .env
+load_dotenv()
 
+# Initialize Flask
 app = Flask(__name__)
-app.secret_key = 'my_super_secret_key_12345'
 
-# DB helpers
+# Load from .env
+app.secret_key = os.getenv("SECRET_KEY")
+DB_PATH = os.getenv("DATABASE_PATH")
+FERNET_KEY = os.getenv("FERNET_KEY")
+TOTP_ISSUER = os.getenv("TOTP_ISSUER", "Medcare App")
+cipher = Fernet(FERNET_KEY)
+
+# Session configuration
+app.config['SESSION_PERMANENT'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+
+# =============================
+# Session Timeout Management
+# =============================
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(minutes=30)
+
+    # Use timezone-aware UTC timestamp
+    now_ts = datetime.now(timezone.utc).timestamp()
+
+    if 'last_activity' in session:
+        last_activity_ts = session.get('last_activity')
+        # If idle for more than 30 minutes → auto logout
+        if (now_ts - last_activity_ts) > 1800:  # 1800 seconds = 30 mins
+            session.clear()
+            flash("Session expired due to inactivity. Please log in again.", "error")
+            return redirect(url_for('login'))
+
+    # Save current timestamp
+    session['last_activity'] = now_ts
+
+# =============================
+# Database Connection Helper
+# =============================
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
+# =============================
+# 2FA
+# =============================
+def login_required(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        if 'user_id' not in session:
+            flash("Please log in ❌", "error")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrap
+
+@app.route('/2fa/setup', methods=['GET', 'POST'])
+@login_required
+def twofa_setup():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE user_id = ?", (session['user_id'],))
+    user = cur.fetchone()
+
+    # If not yet generated, create a new base32 secret
+    if not user['two_factor_secret']:
+        secret = pyotp.random_base32()
+        cur.execute(
+            "UPDATE users SET two_factor_secret = ? WHERE user_id = ?",
+            (secret, session['user_id'])
+        )
+        conn.commit()
+        user = dict(user)
+        user['two_factor_secret'] = secret
+
+    secret = user['two_factor_secret']
+
+    # Use decrypted email (unique) or fallback to unique user_id
+    try:
+        decrypted_email = cipher.decrypt(user['email'].encode()).decode()
+        account_label = decrypted_email
+    except Exception:
+        account_label = f"user_{user['user_id']}"
+
+    # Generate TOTP provisioning URI (shown in Authenticator app)
+    uri = pyotp.TOTP(secret).provisioning_uri(
+        name=account_label,
+        issuer_name=TOTP_ISSUER
+    )
+
+    # Handle form submission (verification)
+    if request.method == 'POST':
+        code = request.form.get('code', '').strip()
+        totp = pyotp.TOTP(secret)
+        if totp.verify(code, valid_window=1):  # allow 30s drift
+            cur.execute("""
+                UPDATE users
+                SET two_factor_enabled = 1, two_factor_method = 'totp'
+                WHERE user_id = ?
+            """, (session['user_id'],))
+            conn.commit()
+            flash("Two-Factor Authentication enabled.", "success")
+            conn.close()
+            return route_for_role()
+        else:
+            flash("Invalid code. Please try again.", "error")
+
+    conn.close()
+    return render_template('2fa_setup.html', otpauth_uri=uri)
+
+@app.route('/2fa/qr')
+@login_required
+def twofa_qr():
+    uri = request.args.get('uri', '')
+    if not uri:
+        abort(400)
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return send_file(buf, mimetype='image/png')
+
+@app.route('/2fa/verify', methods=['GET','POST'])
+def twofa_verify():
+    pending_id = session.get('pending_user_id')
+    if not pending_id:
+        flash("Session expired. Please log in again.", "error")
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id, name, role_id, two_factor_secret FROM users WHERE user_id= ? ", (pending_id,))
+    user = cur.fetchone()
+    if not user:
+        conn.close()
+        flash("User not found.", "error")
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        code = request.form.get('code', '').strip()
+        totp = pyotp.TOTP(user['two_factor_secret'])
+        if totp.verify(code, valid_window=1):
+            # finalize login
+            session.clear()
+            session.permanent = True
+            session['user_id'] = user['user_id']
+            session['name'] = user['name']
+            session['role_id'] = user['role_id']
+            conn.close()
+            flash("2FA verification successful!", "success")
+            return route_for_role()
+        else:
+            flash("Invalid 2FA code.", "error")
+
+    conn.close()
+    return render_template('2fa_verify.html')
+
+def route_for_role():
+    """Redirect user to their respective dashboard based on role_id."""
+    role_id = session.get('role_id')
+
+    if role_id == 1:
+        return redirect(url_for('admin_dashboard'))
+    elif role_id == 2:
+        return redirect(url_for('doctor_dashboard'))
+    elif role_id == 3:
+        return redirect(url_for('patient_dashboard'))
+    else:
+        # Unknown or missing role — fallback to login
+        return redirect(url_for('login'))
+
+# =============================
 # Routes
+# =============================
 @app.route("/")
 def home():
     return render_template("home.html")
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
         email = request.form['email'].strip()
         password = request.form['password'].strip()
 
         conn = get_db_connection()
-        conn.row_factory = sqlite3.Row  # allows access by column name
         cur = conn.cursor()
 
-        cur.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
-        user = cur.fetchone()
+        # Find matching user by decrypting emails
+        cur.execute("SELECT * FROM users")
+        users = cur.fetchall()
+        matched = None
+        for u in users:
+            try:
+                dec = cipher.decrypt(u['email'].encode()).decode()
+                if dec.lower() == email.lower():
+                    matched = u; break
+            except: continue
 
-        if user:
-            session['user_id'] = user['user_id']
-            session['name'] = user['name']
-            session['role_id'] = user['role_id']  # if using role_id now
-
-            cur.close()
-            conn.close()
-
-            # redirect by role
-            if user['role_id'] == 1:
-                flash("Admin login successful ✅", "success")
-                return redirect(url_for('admin_dashboard'))
+        if matched and check_password_hash(matched['password'], password):
+            if matched['two_factor_enabled']:
+                # First stage OK, now require 2FA
+                session.clear()
+                session['pending_user_id'] = matched['user_id']
+                conn.close()
+                return redirect(url_for('twofa_verify'))
             else:
-                flash("Login successful ✅", "success")
-                return redirect(url_for('dashboard'))
+                # Normal login
+                session.clear()
+                session.permanent = True
+                session['user_id'] = matched['user_id']
+                session['name'] = matched['name']
+                session['role_id'] = matched['role_id']
+                conn.close()
+                flash("Login successful!", "success")
+                return route_for_role()
         else:
-            cur.close()
             conn.close()
-            flash("Invalid email or password ❌", "error")
-            return redirect(url_for('login'))
-
+            flash("Invalid email or password!", "error")
     return render_template('login.html')
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        name = request.form.get('name', '').strip()
+        name = bleach.clean(request.form.get('name', '').strip())
         email = request.form.get('email', '').strip()
         phone_number = request.form.get('phone_number', '').strip()
         password = request.form.get('password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+         
+        if not is_valid_email(email):
+            flash("Invalid email format!", "error")
+            return redirect(url_for('signup'))
+        
+        if not is_valid_phone(phone_number):
+            flash("Invalid phone number format!", "error")
+            return redirect(url_for('signup'))
+        
+        if len(email) > 255 or len(phone_number) > 30 or len(name) > 100:
+            flash("Input too long!", "error")
+            return redirect(url_for('signup'))
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "error")
+            return redirect(url_for('signup'))
+        
+        if not is_strong_password(password):
+            flash("Password must include upper, lower, and a number (min 8 chars).", "error")
+            return redirect(url_for('signup'))
 
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Check if user exists by email OR phone number
-        cur.execute("SELECT 1 FROM users WHERE email = ? OR phone_number = ?", (email, phone_number))
-        if cur.fetchone():
-            cur.close()
-            conn.close()
-            flash("⚠️ Email or Phone Number already exists!", "error")
-            return render_template('signup.html')
-
         try:
-            # Only patients can register via this form
+            # Encrypt email and phone number
+            encrypted_email = cipher.encrypt(email.encode()).decode()
+            encrypted_phone = cipher.encrypt(phone_number.encode()).decode()
+
+            # Check duplicates (decrypt existing values first)
+            cur.execute("SELECT email, phone_number FROM users")
+            existing_users = cur.fetchall()
+            for user in existing_users:
+                try:
+                    if email.lower() == cipher.decrypt(user['email'].encode()).decode().lower():
+                        flash("Email already registered!", "error")
+                        return redirect(url_for('signup'))
+                    if phone_number == cipher.decrypt(user['phone_number'].encode()).decode():
+                        flash("Phone number already registered!", "error")
+                        return redirect(url_for('signup'))
+                except Exception:
+                    continue  # skip invalid decrypts
+
+            hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+
             cur.execute("""
                 INSERT INTO users (name, email, password, phone_number, role_id)
                 VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'patient'))
-            """, (name, email, password, phone_number))
+            """, (name, encrypted_email, hashed_password, encrypted_phone))
             conn.commit()
 
-            flash("✅ Signup successful! Please log in.", "success")
+            flash("Signup successful! Please log in.", "success")
             return redirect(url_for('login'))
 
-        except sqlite3.IntegrityError:
-            flash("❌ There was an error during signup. Try again.", "error")
+        except Exception as e:
+            conn.rollback()
+            flash(f"Error: {str(e)}", "error")
+
         finally:
             cur.close()
             conn.close()
 
     return render_template('signup.html')
 
-@app.route('/dashboard', methods=['GET', 'POST'])
-def dashboard():
+@app.route('/patient_dashboard', methods=['GET'])
+def patient_dashboard():
     if 'user_id' not in session:
-        flash("Please log in to access your dashboard ❌", "error")
+        flash("Please log in to book an appointment ❌", "error")
         return redirect(url_for('login'))
 
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    # Fetch appointments for current user
+    # Fetch logged-in user for 2FA info
+    cur.execute("SELECT * FROM users WHERE user_id = ?", (session['user_id'],))
+    user = cur.fetchone()
+
+    # Fetch user's appointments
     cur.execute("""
         SELECT 
             a.id AS appointment_id,
             a.date,
             a.time,
+            a.status,
             u.name AS doctor_name,
             d.specialization AS doctor_specialization
         FROM appointments a
@@ -121,54 +336,26 @@ def dashboard():
     cur.execute("SELECT DISTINCT specialization FROM doctors ORDER BY specialization")
     specializations = [row['specialization'] for row in cur.fetchall()]
 
-    # Handle booking form submission
-    if request.method == 'POST':
-        specialization = request.form.get('specialization')
-        doctor_id = request.form.get('doctor_id')
-        date = request.form.get('date')
-        time_slot = request.form.get('time')
-
-        if not all([specialization, doctor_id, date, time_slot]):
-            flash("❌ Please fill in all fields!", "error")
-        else:
-            cur.execute("""
-                SELECT 1 FROM appointments
-                WHERE doctor_id = ? AND date = ? AND time = ?
-            """, (doctor_id, date, time_slot))
-            if cur.fetchone():
-                flash("❌ Selected time slot is already booked!", "error")
-            else:
-                cur.execute("""
-                    INSERT INTO appointments (user_id, doctor_id, date, time)
-                    VALUES (?, ?, ?, ?)
-                """, (session['user_id'], doctor_id, date, time_slot))
-                conn.commit()
-                flash("✅ Appointment booked successfully!", "success")
-
-        cur.close()
-        conn.close()
-        return redirect(url_for('dashboard') + '#book-section')
-
-    cur.close()
     conn.close()
+
     return render_template(
-        'dashboard.html',
+        'patient_dashboard.html',
         name=session.get('name', 'User'),
         appointments=appointments,
-        specializations=specializations
+        specializations=specializations,
+        two_factor_enabled=user['two_factor_enabled']
     )
 
 @app.route('/get_doctors/<specialization>')
 def get_doctors(specialization):
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     # Join doctor table + user table to get doctor names
     cur.execute("""
         SELECT d.doctor_id, u.name
         FROM doctors d
-        JOIN users u ON d.user_id = u.id
+        JOIN users u ON d.user_id = u.user_id
         WHERE d.specialization = ?
     """, (specialization,))
     doctors = [dict(row) for row in cur.fetchall()]
@@ -177,15 +364,7 @@ def get_doctors(specialization):
 
 @app.route('/get_available_slots/<int:doctor_id>/<date>')
 def get_available_slots(doctor_id, date):
-    all_slots = [
-        "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
-        "12:00 PM", "12:30 PM",
-        "02:00 PM", "02:30 PM", "03:00 PM",
-        "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM"
-    ]
-
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     cur.execute("SELECT time FROM appointments WHERE doctor_id = ? AND date = ?", (doctor_id, date))
@@ -194,10 +373,52 @@ def get_available_slots(doctor_id, date):
 
     return jsonify({"booked": booked_slots})
 
+@app.route('/book_appointment', methods=['POST'])
+def book_appointment():
+    if 'user_id' not in session:
+        return jsonify({"success": False, "error": "Please log in first."}), 401
+
+    data = request.get_json(force=True)
+    specialization = data.get('specialization')
+    doctor_id = data.get('doctor_id')
+    date = data.get('date')
+    time_slot = data.get('time')
+
+    # Validate input
+    if not all([specialization, doctor_id, date, time_slot]):
+        return jsonify({"success": False, "error": "All fields are required."}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Check if slot already booked
+        cur.execute("""
+            SELECT 1 FROM appointments
+            WHERE doctor_id = ? AND date = ? AND time = ?
+        """, (doctor_id, date, time_slot))
+        if cur.fetchone():
+            conn.close()
+            return jsonify({"success": False, "error": "Selected time slot is already booked."}), 409
+
+        # Insert new appointment
+        cur.execute("""
+            INSERT INTO appointments (user_id, doctor_id, date, time)
+            VALUES (?, ?, ?, ?)
+        """, (session['user_id'], doctor_id, date, time_slot))
+        conn.commit()
+
+        return jsonify({"success": True, "message": "Appointment booked successfully!"})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
 @app.route('/cancel_booking', methods=['POST'])
 def cancel_booking():
     if 'user_id' not in session:
-        flash("Please log in to access your dashboard ❌", "error")
+        flash("Please log in to access your dashboard", "error")
         return redirect(url_for('login'))
 
     data = request.get_json(force=True)
@@ -209,77 +430,209 @@ def cancel_booking():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Only delete if this appointment belongs to the logged-in user
+    # Update the status to 'cancelled' only if this appointment belongs to the logged-in user
     cur.execute("""
-        DELETE FROM appointments
-        WHERE id = ? AND user_id = ?
+        UPDATE appointments
+        SET status = 'cancelled'
+        WHERE id = ? AND user_id = ? AND status != 'cancelled'
     """, (appointment_id, session['user_id']))
     
     conn.commit()
-    deleted = cur.rowcount
+    updated = cur.rowcount
     conn.close()
 
-    if deleted:
-        return jsonify({"success": True, "message": "Appointment canceled successfully"})
+    if updated:
+        return jsonify({"success": True, "message": "Appointment cancelled successfully"})
     else:
-        return jsonify({"success": False, "error": "Appointment not found or not authorized"}), 404
-
-@app.route('/logout')
-def logout():
-    # Clear all session keys related to the user
-    session.pop('user_id', None)
-    session.pop('name', None)
-    session.pop('role_id', None)
+        return jsonify({"success": False, "error": "Appointment not found or already cancelled"}), 404
     
-    flash("You have been logged out successfully ✅", "success")
-    return redirect(url_for('home'))
-
-# ------------------------------
-# Admin Routes
-# ------------------------------
-
-@app.route('/admin_dashboard')
-def admin_dashboard():
-    # Require admin
-    if 'admin' not in session:
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user_id' not in session:
+        flash("Please log in to access your profile", "error")
         return redirect(url_for('login'))
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM doctors ORDER BY specialization, name")
-    rows = cur.fetchall()
+
+    # Get current user info
+    cur.execute("""
+        SELECT u.*, r.role_name
+        FROM users u
+        JOIN roles r ON u.role_id = r.id
+        WHERE u.user_id = ?
+    """, (session['user_id'],))
+    user = cur.fetchone()
+
+    if not user:
+        flash("User not found", "error")
+        conn.close()
+        return redirect(url_for('login'))
+
+    # Decrypt email and phone
+    user_email = cipher.decrypt(user['email'].encode()).decode()
+    user_phone = cipher.decrypt(user['phone_number'].encode()).decode()
+
+    # If doctor, get specialization + experience
+    doctor_info = None
+    if user['role_name'] == 'doctor':
+        cur.execute("SELECT specialization, experience_years FROM doctors WHERE user_id = ?", (user['user_id'],))
+        doctor_info = cur.fetchone()
+
+    # Handle form submission
+    if request.method == 'POST':
+        name = bleach.clean(request.form.get('name', '').strip())
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone_number', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        # Encrypt updated values
+        encrypted_email = cipher.encrypt(email.encode()).decode()
+        encrypted_phone = cipher.encrypt(phone.encode()).decode()
+
+        # Update name, email, and phone
+        cur.execute("""
+            UPDATE users
+            SET name = ?, email = ?, phone_number = ?
+            WHERE user_id = ?
+        """, (name, encrypted_email, encrypted_phone, user['user_id']))
+
+        # Handle password change
+        if new_password:
+            if new_password != confirm_password:
+                flash("Passwords do not match!", "error")
+            else:
+                hashed_pw = generate_password_hash(new_password, method='pbkdf2:sha256', salt_length=16)
+                cur.execute("UPDATE users SET password = ? WHERE user_id = ?", (hashed_pw, user['user_id']))
+                flash("Password updated successfully!", "success")
+
+        conn.commit()
+        flash("Profile updated successfully!", "success")
+        conn.close()
+        return redirect(url_for('profile'))
+
     conn.close()
 
-    # Convert stored comma text into list for template
-    doctors = []
-    for row in rows:
-        doctors.append({
-            'id': row['id'],
-            'name': row['name'],
-            'specialization': row['specialization'],
-            'available_slots': [s.strip() for s in row['available_slots'].split(',') if s.strip()]
-        })
+    return render_template('profile.html', user=user, email=user_email, phone=user_phone, doctor_info=doctor_info)
 
-    return render_template('admin_dashboard.html', doctors=doctors)
+@app.route('/logout')
+def logout():
+    # Clear entire session
+    session.clear()
+    flash("You have been logged out successfully.", "success")
+    return redirect(url_for('home'))
 
-@app.route('/add_doctor', methods=['POST'])
-def add_doctor():
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    phone_number = data.get('phone_number')
-    specialization = data.get('specialization')
-    experience_years = data.get('experience_years')
+# =============================
+# Admin Routes
+# =============================
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    if 'user_id' not in session:
+        flash("Please log in to access your dashboard ❌", "error")
+        return redirect(url_for('login'))
 
     conn = get_db_connection()
     cur = conn.cursor()
 
+    # Fetch current admin user details (for 2FA info)
+    cur.execute("SELECT * FROM users WHERE user_id = ?", (session['user_id'],))
+    user = cur.fetchone()
+
+    # Fetch doctors
+    cur.execute("""
+        SELECT d.doctor_id, u.name, u.email, u.phone_number, d.specialization, d.experience_years
+        FROM doctors d
+        JOIN users u ON d.user_id = u.user_id
+        ORDER BY d.specialization, u.name
+    """)
+    doctors = cur.fetchall()
+
+    # Decrypt sensitive info
+    decrypted_doctors = []
+    for doc in doctors:
+        decrypted_doc = dict(doc)
+        try:
+            decrypted_doc['email'] = cipher.decrypt(doc['email'].encode()).decode()
+            decrypted_doc['phone_number'] = cipher.decrypt(doc['phone_number'].encode()).decode()
+        except Exception:
+            decrypted_doc['email'] = "N/A"
+            decrypted_doc['phone_number'] = "N/A"
+        decrypted_doctors.append(decrypted_doc)
+
+    # Fetch all appointments with doctor + patient info
+    cur.execute("""
+        SELECT 
+            a.id AS appointment_id,
+            a.date,
+            a.time,
+            a.status,
+            u.name AS patient_name,
+            du.name AS doctor_name,
+            d.specialization AS doctor_specialization
+        FROM appointments a
+        JOIN users u ON a.user_id = u.user_id
+        JOIN doctors d ON a.doctor_id = d.doctor_id
+        JOIN users du ON d.user_id = du.user_id
+        ORDER BY a.date DESC, a.time ASC
+    """)
+    appointments = cur.fetchall()
+
+    conn.close()
+
+    return render_template(
+        'admin_dashboard.html',
+        two_factor_enabled=user['two_factor_enabled'],
+        doctors=decrypted_doctors,
+        appointments=appointments
+    )
+
+@app.route('/add_doctor', methods=['POST'])
+def add_doctor():
+    data = request.get_json()
+    name = bleach.clean(data.get('name', '').strip())
+    email = data.get('email', '').strip()
+    phone_number = data.get('phone_number', '').strip()
+    specialization = data.get('specialization', '').strip()
+    experience_years = data.get('experience_years')
+
+    if not is_valid_email(email):
+        return jsonify({"success": False, "error": "Invalid email format."}), 400
+
+    if not is_valid_phone(phone_number):
+        return jsonify({"success": False, "error": "Invalid phone number format."}), 400
+ 
+    conn = get_db_connection()
+    cur = conn.cursor()
+
     try:
-        # Create a new user with doctor role_id (assuming 2 = doctor)
+        # Encrypt email and phone number
+        encrypted_email = cipher.encrypt(email.encode()).decode()
+        encrypted_phone = cipher.encrypt(phone_number.encode()).decode()
+
+        # Check if email or phone already exists
+        cur.execute("SELECT email, phone_number FROM users")
+        existing_users = cur.fetchall()
+        for user in existing_users:
+            try:
+                db_email = cipher.decrypt(user['email'].encode()).decode()
+                db_phone = cipher.decrypt(user['phone_number'].encode()).decode()
+
+                if db_email == email:
+                    return jsonify({"success": False, "error": "Email already exists."})
+                if db_phone == phone_number:
+                    return jsonify({"success": False, "error": "Phone number already exists."})
+            except Exception:
+                continue  # skip decryption errors
+
+        # Hash a default password for new doctor
+        hashed_password = generate_password_hash("Doctor123$", method='pbkdf2:sha256', salt_length=16)
+
+        # Insert new doctor user
         cur.execute("""
             INSERT INTO users (name, email, password, phone_number, role_id)
             VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'doctor'))
-        """, (name, email, "doctor123", phone_number))
+        """, (name, encrypted_email, hashed_password, encrypted_phone))
         user_id = cur.lastrowid
 
         # Add corresponding doctor record
@@ -290,9 +643,11 @@ def add_doctor():
 
         conn.commit()
         return jsonify({"success": True})
+
     except Exception as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)})
+
     finally:
         conn.close()
 
@@ -305,15 +660,141 @@ def delete_doctor():
     cur = conn.cursor()
 
     try:
-        # Delete doctor (cascade removes user too if defined in FK)
+        # Find the related user_id
+        cur.execute("SELECT user_id FROM doctors WHERE doctor_id = ?", (doctor_id,))
+        row = cur.fetchone()
+
+        if not row:
+            return jsonify({"success": False, "error": "Doctor not found"})
+
+        user_id = row["user_id"]
+
+        # Delete the doctor record
         cur.execute("DELETE FROM doctors WHERE doctor_id = ?", (doctor_id,))
+
+        # Delete the linked user record
+        cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+
         conn.commit()
         return jsonify({"success": True})
+
     except Exception as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)})
     finally:
         conn.close()
+
+# =============================
+# Doctor Routes
+# =============================
+@app.route('/doctor_dashboard')
+def doctor_dashboard():
+    if 'user_id' not in session:
+        flash("Please log in to access your dashboard", "error")
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Fetch current doctor user (for 2FA status)
+    cur.execute("SELECT * FROM users WHERE user_id = ?", (session['user_id'],))
+    user = cur.fetchone()
+
+    # Get this doctor's ID
+    cur.execute("SELECT doctor_id FROM doctors WHERE user_id = ?", (session['user_id'],))
+    doctor = cur.fetchone()
+    if not doctor:
+        flash("Doctor profile not found", "error")
+        conn.close()
+        return redirect(url_for('login'))
+
+    # Fetch all appointments for this doctor
+    cur.execute("""
+        SELECT 
+            a.id AS appointment_id,
+            a.date,
+            a.time,
+            a.status,
+            u.name AS patient_name,
+            u.phone_number
+        FROM appointments a
+        JOIN users u ON a.user_id = u.user_id
+        WHERE a.doctor_id = ?
+        ORDER BY a.date, a.time
+    """, (doctor['doctor_id'],))
+    appointments = cur.fetchall()
+
+    # Decrypt patient phone numbers safely
+    decrypted_appointments = []
+    for a in appointments:
+        decrypted_a = dict(a)
+        try:
+            decrypted_a['phone_number'] = cipher.decrypt(a['phone_number'].encode()).decode()
+        except Exception:
+            decrypted_a['phone_number'] = "N/A"
+        decrypted_appointments.append(decrypted_a)
+
+    conn.close()
+
+    # Render dashboard with 2FA info
+    return render_template(
+        'doctor_dashboard.html',
+        name=session.get('name', 'Doctor'),
+        appointments=decrypted_appointments,
+        two_factor_enabled=user['two_factor_enabled']
+    )
+
+@app.route('/update_appointment_status', methods=['POST'])
+def update_appointment_status():
+    if 'user_id' not in session or session.get('role') != 'doctor':
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    appointment_id = data.get("appointment_id")
+    status = data.get("status")
+
+    if not appointment_id or status not in ['approved', 'rejected']:
+        return jsonify({"success": False, "error": "Invalid data"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Verify that the appointment belongs to this doctor
+    cur.execute("""
+        SELECT a.id FROM appointments a
+        JOIN doctors d ON a.doctor_id = d.doctor_id
+        WHERE a.id = ? AND d.user_id = ?
+    """, (appointment_id, session['user_id']))
+    valid = cur.fetchone()
+
+    if not valid:
+        conn.close()
+        return jsonify({"success": False, "error": "Unauthorized or appointment not found"}), 403
+
+    cur.execute("UPDATE appointments SET status = ? WHERE id = ?", (status, appointment_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True})
+
+# =============================
+# Helper Functions
+# =============================
+def is_valid_email(email):
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return re.match(pattern, email) is not None
+
+def is_valid_phone(phone):
+    pattern = r"^\d{7,15}$"  # only digits, length between 7 and 15
+    return re.match(pattern, phone) is not None
+
+def is_strong_password(pw):
+    return (
+        len(pw) >= 8
+        and any(c.islower() for c in pw)
+        and any(c.isupper() for c in pw)
+        and any(c.isdigit() for c in pw)
+    )
 
 if __name__ == '__main__':
     app.run(debug=True)

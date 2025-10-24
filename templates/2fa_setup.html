@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Enable 2FA - Medcare{% endblock %}
+{% block content %}
+<div class="dashboard-container" style="padding:40px; text-align:center;">
+    <h1><i class="fa-solid fa-shield-halved"></i> Enable Two-Factor Authentication</h1>
+    <p>Scan this QR with <b>Google Authenticator</b> or <b>Microsoft Authenticator</b>, then enter the 6-digit code below.</p>
+
+    <!-- QR Code -->
+    <img 
+        src="{{ url_for('twofa_qr', uri=otpauth_uri) }}" 
+        alt="2FA QR" 
+        style="width:240px;height:240px;border:1px solid #eee;border-radius:8px;margin:20px 0;"
+    >
+
+    <!-- Validity Note -->
+    <p style="color:#666; font-size:15px; max-width:480px; margin:auto;">
+        <i class="fa-regular fa-clock" style="color:#1E90FF;"></i>
+        Each 6-digit code refreshes every <b>30 seconds</b>.  
+        The QR code itself remains valid until you complete setup or regenerate it.
+    </p>
+
+    <form method="POST" class="mt-4" style="max-width:360px;margin:30px auto;">
+        <input 
+            name="code" 
+            class="form-control mb-3 text-center" 
+            placeholder="Enter 6-digit code" 
+            maxlength="6" 
+            required
+        >
+        <button class="btn btn-primary w-100">
+            <i class="fa-solid fa-key"></i> Verify & Enable
+        </button>
+    </form>
+</div>
+{% endblock %}

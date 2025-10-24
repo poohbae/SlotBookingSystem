@@ -19,6 +19,22 @@ body {
     padding-top: 120px;
 }
 
+h1, h3 {
+    color: #0b2e59;
+}
+
+.fa-hand {
+  animation: wave 1.5s infinite;
+}
+@keyframes wave {
+    0% { transform: rotate(0deg); }
+    20% { transform: rotate(20deg); }
+    40% { transform: rotate(-10deg); }
+    60% { transform: rotate(10deg); }
+    80% { transform: rotate(-5deg); }
+    100% { transform: rotate(0deg); }
+}
+
 .content {
     flex: 1;
     display: block; /* Normal flow for multi-section pages like home */
@@ -113,8 +129,7 @@ body {
 
 /* Forms and Containers */
 .login-container, 
-.signup-container, 
-.booking-container {
+.signup-container {
     width: 500px;
     margin: 0 auto; /* Remove top margin */
     padding: 20px;
@@ -161,6 +176,30 @@ input:focus, select:focus {
 select option[disabled] {
     color: #999;
     background-color: #f0f0f0;
+}
+
+.dashboard-container {
+    padding: 40px; 
+    text-align: center;
+}
+
+.booking-container {
+    width: 400px;
+    margin: 0 auto; /* Remove top margin */
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    animation: fadeIn 1s ease-in-out;
+    backdrop-filter: blur(10px);
+    
+    /* Stretch from below the navbar to the bottom */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; /* Start from the top */
+    align-items: center;
+    padding-top: 40px; /* Adjust as needed for spacing */
 }
 
 /* Ensure labels appear on their own line (fix inline issue) */
@@ -214,6 +253,13 @@ button:active {
     transform: scale(0.98);
 }
 
+.empty {
+    font-size: 18px; 
+    color: #888; 
+    width: 100%; 
+    text-align: center;
+}
+
 /* Dashboard Pages */
 .appointments-container {
     display: flex;
@@ -239,9 +285,30 @@ button:active {
     transform: scale(1.05);
 }
 
+.status {
+    font-weight: bold;
+    text-transform: capitalize;
+}
+
+.status-approved {
+    color: green;
+}
+
+.status-rejected {
+    color: red;
+}
+
+.status-cancelled {
+    color: gray;
+}
+
+.status-pending {
+    color: orange;
+}
+
 /* Cancel Button */
 .cancel-btn {
-    background: #ff4c4c;
+    background: #f97b88;
     border: none;
     padding: 10px 15px;
     border-radius: 8px;
@@ -266,48 +333,35 @@ button:active {
     to { transform: translateY(0); opacity: 1; }
 }
 
-.form-group {
-    position: relative;
-    margin-bottom: 30px;
+@keyframes scaleUp {
+    from { transform: scale(1); }
+    to { transform: scale(1.1); }
 }
 
-.form-group input, .form-group textarea {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-bottom: 2px solid rgba(0, 0, 0, 0.12);
-    font-size: 17px;
-    outline: none;
-    transition: all 0.3s ease;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
-.form-group label {
-    position: absolute;
-    top: 12px;
-    left: 10px;
-    color: #262626;
-    font-size: 16px;
-    background: #fff;
-    transition: all 0.3s ease;
-    pointer-events: none;
-}
-
-.add-btn {
-    width: 100%;
-    background: #007bff;
-    color: white;
-    font-weight: bold;
-    border: none;
-    padding: 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: 0.3s;
-}
-.add-btn:hover { background: #0056b3; }
 
 .list-title {
     text-align: center;
     margin-top: 40px;
+    color: #0b2e59;
+}
+
+.doctor-list {
+    display: flex; 
+    flex-wrap: wrap; 
+    justify-content: center; 
+    gap: 20px;
+}
+
+.appointment-table {
+    width:100%; 
+    border-collapse: collapse; 
+    background: white; 
+    border-radius: 10px; 
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
 .doctor-card {
@@ -324,17 +378,136 @@ button:active {
 }
 
 .doctor-info p { margin: 3px 0; }
-.delete-btn {
-    background: #ff4444;
-    color: white;
+
+.action-buttons {
+    display: flex;
+    justify-content: center; /* Center horizontally (optional) */
+    gap: 10px;               /* Space between buttons */
+    margin-top: 10px;
+}
+
+.approve-btn, .reject-btn, .delete-btn {
+    padding: 8px 14px;
     border: none;
-    padding: 8px 12px;
-    border-radius: 5px;
+    border-radius: 6px;
+    color: white;
     cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+.profile-container {
+    max-width: 600px;
+    margin: 50px auto;
+    background: #ffffff;
+    padding: 40px 50px;
+    border-radius: 16px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    font-family: 'Poppins', sans-serif;
+}
+
+/* Divider */
+.profile-container hr {
+    border: 0;
+    border-top: 1px solid #ddd;
+    margin: 30px 0;
+}
+
+/* Labels & Inputs */
+.profile-container .form-group {
+    margin-bottom: 15px; /* 🔹 Adds more vertical space between fields */
+}
+
+.profile-container label {
+    display: block;
+    font-weight: 600;
+    color: #0b2e59;
+    text-align: left; /* 🔹 Left-align the label */
+    margin-bottom: 8px; /* 🔹 Adds small gap between label & input */
+}
+
+.profile-container input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    transition: 0.2s;
+}
+
+.profile-container input:focus {
+    outline: none;
+    border-color: #1E90FF;
+    box-shadow: 0 0 6px rgba(30, 144, 255, 0.3);
+}
+
+.profile-container input:disabled {
+    background-color: #f7f7f7;
+    color: #777;
+}
+
+/* Buttons */
+.profile-container .btn-primary {
+    background-color: #1E90FF;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 40px;
+    font-weight: 600;
+    font-size: 16px;
     transition: 0.3s;
 }
 
-.delete-btn:hover { background: #cc0000; }
+.profile-container .btn-primary:hover {
+    background-color: #0b2e59;
+}
+
+.profile-container .btn-warning {
+    background-color: #ffc107;
+    color: #222;
+    font-weight: 600;
+    padding: 10px 25px;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+
+.profile-container .btn-warning:hover {
+    background-color: #ffb300;
+    color: #fff;
+}
+
+.profile-container .text-success {
+    text-align: center;
+    font-weight: 500;
+    color: #28a745;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .profile-container {
+        padding: 30px 25px;
+    }
+    .profile-container .btn-primary {
+        width: 100%;
+    }
+}
+
+.approve-btn { background-color: #28a745; }
+.reject-btn, .delete-btn { background-color: #f97b88; }
+.approve-btn:hover { background-color: #218838; }
+.reject-btn:hover, .delete-btn:hover { background-color: #ff1a1a; }
+
+.swal2-confirm {
+    padding: 0.625em 1.5em !important;
+    line-height: 1.2 !important;
+    height: auto !important;
+    min-height: 2.5em !important;
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  font-size: 1rem !important;
+}
 
 /* Flash Messages */
 .flash-container {
@@ -366,11 +539,6 @@ button:active {
 
 .flash-message.error {
     background-color: #f97b88; /* Red */
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .success-message {

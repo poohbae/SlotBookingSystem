@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}2FA Verify - Medcare{% endblock %}
+{% block content %}
+<div class="dashboard-container">
+    <h1><i class="fa-solid fa-key"></i> Two-Factor Verification</h1>
+    <p>Enter the 6-digit code from your authenticator app.</p>
+    <form method="POST" style="max-width:360px;margin:0 auto;">
+        <input name="code" class="form-control mb-3" maxlength="6" placeholder="123456" required>
+        <button class="btn btn-primary w-100">Verify</button>
+    </form>
+</div>
+{% endblock %}

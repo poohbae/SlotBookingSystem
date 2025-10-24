@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Patient Dashboard - Medcare App{% endblock %}
+{% block content_class %}centered{% endblock %}
+{% block content %}
+
+<!-- Dashboard Container -->
+<div class="dashboard-container">
+    <h1>Welcome, {{ name }} <i class="fa-solid fa-hand"></i></h1>
+
+    {% if not two_factor_enabled %}
+    <div class="alert alert-warning" style="margin: 20px; text-align:center;">
+        <i class="fa-solid fa-shield-halved"></i>
+        <b>Secure your account:</b> You haven’t enabled Two-Factor Authentication yet.
+        <a href="{{ url_for('twofa_setup') }}" class="btn btn-sm btn-primary">Set Up 2FA</a>
+    </div>
+    {% endif %}
+
+    <!-- Appointments Section -->
+    <section class="appointments-container">
+        {% if appointments %}
+            <p style="color: #444; width: 100%; text-align: center;">Here are your upcoming appointments.</p>
+
+            {% for appointment in appointments %}
+            <div class="appointment-card" id="appointment-{{ appointment['appointment_id'] }}">
+                <h3><i class="fa-solid fa-calendar-days"></i> {{ appointment['date'] }} — {{ appointment['time'] }}</h3>
+                <p><i class="fa-solid fa-user-doctor"></i> <b>Doctor:</b> {{ appointment['doctor_name'] }}</p>
+                <p><i class="fa-solid fa-stethoscope"></i> <b>Specialization:</b> {{ appointment['doctor_specialization'] }}</p>
+
+                <!-- Appointment Status -->
+                <p>
+                    <b>Status:</b>
+                    <span class="status status-{{ appointment['status'] }}">
+                        {{ appointment['status'] }}
+                    </span>
+                </p>
+
+                {% if appointment['status'] not in ['cancelled', 'rejected'] %}
+                <button class="cancel-btn" data-id="{{ appointment['appointment_id'] }}">
+                    Cancel
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+        {% else %}
+            <p class="empty">
+                <i class="fa-regular fa-face-frown"></i>
+                No appointments booked yet.
+            </p>
+        {% endif %}
+    </section>
+
+    <!-- Booking Section -->
+    <div id="book-section" class="booking-container" style="margin-top: 30px;">
+        <h2 style="color: #0b2e59;">Book a New Appointment</h2>
+
+        <form id="bookAppointmentForm">
+            <label for="specialization">Specialization:</label>
+            <select id="specialization" required>
+                <option value="">Select Specialization</option>
+                {% for spec in specializations %}
+                    <option value="{{ spec }}">{{ spec }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="doctor">Doctor:</label>
+            <select id="doctor" required>
+                <option value="">Select Doctor</option>
+            </select>
+
+            <label for="date">Date:</label>
+            <input type="date" id="date" required min="">
+
+            <label for="time">Select Time Slot:</label>
+            <select id="time" required>
+                <option value="">Select a doctor & date first</option>
+            </select>
+
+            <button type="submit" class="btn" style="margin-top: 15px;">Confirm Booking</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

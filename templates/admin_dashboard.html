@@ -1,114 +1,114 @@
 {% extends "base.html" %}
-{% block title %}Admin Dashboard{% endblock %}
-{% block content_class %}centered{% endblock %}
+{% block title %}Admin Dashboard - Medcare App{% endblock %}
 {% block content %}
 
-<h1 class="dashboard-title">Admin Dashboard – Doctor Management</h1>
+<div class="dashboard-container">
+    <h1>Welcome, Admin <i class="fa-solid fa-hand"></i></h1>
 
-<!-- Add Doctor Form -->
-<div class="doctor-form">
-    <h2>Add New Doctor</h2>
-    <form id="addDoctorForm">
-        <input type="text" id="name" placeholder="Doctor Name" required>
-        <input type="email" id="email" placeholder="Email" required>
-        <input type="text" id="phone_number" placeholder="Phone Number" required>
-        <input type="text" id="specialization" placeholder="Specialization (e.g., Cardiology)" required>
-        <input type="number" id="experience" placeholder="Years of Experience" min="0" required>
-        <button type="submit" class="add-btn">Add Doctor</button>
-    </form>
-</div>
-
-<!-- Doctor List -->
-<h2 class="list-title">Registered Doctors</h2>
-<div id="doctorList">
-    {% if doctors %}
-        {% for doc in doctors %}
-        <div class="doctor-card">
-            <div class="doctor-info">
-                <strong>Dr. {{ doc['name'] }}</strong>
-                <p><b>Specialization:</b> {{ doc['specialization'] }}</p>
-                <p><b>Experience:</b> {{ doc['experience_years'] }} years</p>
-                <p><b>Phone:</b> {{ doc['phone_number'] }}</p>
-                <p><b>Email:</b> {{ doc['email'] }}</p>
-            </div>
-            <button class="delete-btn" data-id="{{ doc['doctor_id'] }}">❌ Delete</button>
-        </div>
-        {% endfor %}
-    {% else %}
-        <p style="text-align: center; color: gray;">No doctors added yet.</p>
+    {% if not two_factor_enabled %}
+    <div class="alert alert-warning" style="margin: 20px; text-align:center;">
+        <i class="fa-solid fa-shield-halved"></i>
+        <b>Secure your account:</b> You haven’t enabled Two-Factor Authentication yet.
+        <a href="{{ url_for('twofa_setup') }}" class="btn">Set Up 2FA</a>
+    </div>
     {% endif %}
+
+    <!-- Appointment Overview -->
+    <h2 class="list-title">All Appointments</h2>
+    {% if appointments %}
+    <table class="appointment-table">
+        <thead style="background: #0b2e59; color: white;">
+            <tr>
+                <th style="padding: 10px;">Patient</th>
+                <th style="padding: 10px;">Doctor</th>
+                <th style="padding: 10px;">Specialization</th>
+                <th style="padding: 10px;">Date</th>
+                <th style="padding: 10px;">Time</th>
+                <th style="padding: 10px;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for appt in appointments %}
+            <tr style="text-align: center; border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px;">{{ appt['patient_name'] }}</td>
+                <td style="padding: 10px;">{{ appt['doctor_name'] }}</td>
+                <td style="padding: 10px;">{{ appt['doctor_specialization'] }}</td>
+                <td style="padding: 10px;">{{ appt['date'] }}</td>
+                <td style="padding: 10px;">{{ appt['time'] }}</td>
+                <td style="padding: 10px;">
+                    <span class="status status-{{ appt['status'] }}">{{ appt['status'] | capitalize }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="empty">
+            <i class="fa-regular fa-face-frown"></i>
+            No appointments booked yet.
+        </p>
+    {% endif %}
+
+    <!-- Registered Doctors -->
+    <h2 class="list-title"">Registered Doctors</h2>
+        <div id="doctorList" class="doctor-list">
+        {% if doctors %}
+            {% for doc in doctors %}
+            <div class="appointment-card">
+                
+                <!-- Doctor name centered -->
+                <div style="text-align: center; margin-bottom: 10px;">
+                    <strong style="font-size: 1.2em; color: #0b2e59;">
+                        <i class="fa-solid fa-user-doctor" style="margin-right: 6px; color:#0b2e59;"></i>
+                        {{ doc['name'] }}
+                    </strong>
+                </div>
+
+                <!-- Details left-aligned -->
+                <div style="text-align: left;">
+                    <p><i class="fa-solid fa-stethoscope" style="margin-right: 6px; color:#1E90FF;"></i><b>Specialization:</b> {{ doc['specialization'] }}</p>
+                    <p><i class="fa-solid fa-briefcase" style="margin-right: 6px; color:#28a745;"></i><b>Experience:</b> {{ doc['experience_years'] }} years</p>
+                    <p><i class="fa-solid fa-phone" style="margin-right: 6px; color:#ff9800;"></i><b>Phone:</b> {{ doc['phone_number'] }}</p>
+                    <p><i class="fa-solid fa-envelope" style="margin-right: 6px; color:#9c27b0;"></i><b>Email:</b> {{ doc['email'] }}</p>
+                </div>
+
+                <div style="text-align: center; margin-top: 10px;">
+                    <button class="cancel-btn delete-btn" data-id="{{ doc['doctor_id'] }}" 
+                            style="background:#f97b88; border:none; padding:8px 12px; border-radius:6px; color:white; cursor:pointer;">
+                        <i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>Delete
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="empty">
+                <i class="fa-regular fa-face-frown"></i>
+                No doctors added yet.
+            </p>
+        {% endif %}
+    </div>
+
+    <!-- Add Doctor Section -->
+    <div id="add-doctor-section" class="booking-container" style="margin-top: 30px;">
+        <h2 style="color: #0b2e59;">Add New Doctor</h2>
+        <form id="addDoctorForm">
+            <label for="name">Doctor Name:</label>
+            <input type="text" id="name" placeholder="Doctor Name" required>
+
+            <label for="email">Email:</label>
+            <input type="email" id="email" placeholder="Email" required>
+
+            <label for="phone_number">Phone Number:</label>
+            <input type="text" id="phone_number" placeholder="Phone Number" required>
+
+            <label for="specialization">Specialization:</label>
+            <input type="text" id="specialization" placeholder="Specialization (e.g., Cardiology)" required>
+
+            <label for="experience">Years of Experience:</label>
+            <input type="number" id="experience" placeholder="Years of Experience" min="0" required>
+
+            <button type="submit" class="btn" style="margin-top: 15px;">Add Doctor</button>
+        </form>
+    </div>
 </div>
-
-<!-- JS -->
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("🩺 Admin Dashboard Loaded");
-
-    const addForm = document.getElementById("addDoctorForm");
-
-    // ✅ Add doctor
-    addForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const doctorData = {
-            name: document.getElementById("name").value.trim(),
-            email: document.getElementById("email").value.trim(),
-            phone_number: document.getElementById("phone").value.trim(),
-            password: document.getElementById("password").value.trim(),
-            specialization: document.getElementById("specialization").value.trim(),
-            experience_years: Number(document.getElementById("experience").value)
-        };
-
-        if (!doctorData.name || !doctorData.email || !doctorData.password) {
-            alert("⚠️ Please fill in all required fields.");
-            return;
-        }
-
-        fetch('/add_doctor', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(doctorData)
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert("✅ Doctor added successfully!");
-                location.reload();
-            } else {
-                alert("❌ Error: " + (data.error || "Failed to add doctor."));
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert("⚠️ Server error while adding doctor.");
-        });
-    });
-
-    // ✅ Delete doctor
-    document.addEventListener("click", (event) => {
-        if (event.target.classList.contains("delete-btn")) {
-            const doctorId = event.target.dataset.id;
-            if (!confirm("Are you sure you want to delete this doctor?")) return;
-
-            fetch('/delete_doctor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ doctor_id: Number(doctorId) })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert("🗑️ Doctor deleted successfully!");
-                    location.reload();
-                } else {
-                    alert("❌ Error: " + (data.error || "Failed to delete doctor."));
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert("⚠️ Server error while deleting doctor.");
-            });
-        }
-    });
-});
-</script>
 {% endblock %}

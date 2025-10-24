@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Doctor Dashboard - Medcare App{% endblock %}
+{% block content %}
+
+<div class="dashboard-container">
+    <h1>Welcome, {{ name }} <i class="fa-solid fa-hand"></i></h1>
+
+    {% if not two_factor_enabled %}
+    <div class="alert alert-warning" style="margin: 20px; text-align:center;">
+        <i class="fa-solid fa-shield-halved"></i>
+        <b>Secure your account:</b> You haven’t enabled Two-Factor Authentication yet.
+        <a href="{{ url_for('twofa_setup') }}" class="btn btn-sm btn-primary">Set Up 2FA</a>
+    </div>
+    {% endif %}
+
+    <section class="appointments-container">
+        {% if appointments %}
+            <p style="color: #444; width: 100%; text-align: center;">
+                Here are your upcoming appointments.
+            </p>
+
+            {% for appointment in appointments %}
+            <div class="appointment-card" id="appointment-{{ appointment['appointment_id'] }}">
+                <h3><i class="fa-solid fa-calendar-days"></i> {{ appointment['date'] }} — {{ appointment['time'] }}</h3>
+                <p><i class="fa-solid fa-user"></i> <b>Patient:</b> {{ appointment['patient_name'] }}</p>
+                <p><i class="fa-solid fa-phone"></i> <b>Phone:</b> {{ appointment['phone_number'] }}</p>
+
+                <!-- Appointment Status -->
+                <p>
+                    <b>Status:</b>
+                    <span class="status status-{{ appointment['status'] }}">
+                        {{ appointment['status'] }}
+                    </span>
+                </p>
+
+                {% if appointment['status'] == 'pending' %}
+                    <div class="action-buttons">
+                        <button class="approve-btn" data-id="{{ appointment['appointment_id'] }}">Approve</button>
+                        <button class="reject-btn" data-id="{{ appointment['appointment_id'] }}">Reject</button>
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="empty">
+                <i class="fa-regular fa-face-frown"></i>
+                No appointments booked yet.
+            </p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

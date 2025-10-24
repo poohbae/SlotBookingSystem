@@ -1,0 +1,10 @@
+# Ignore environment and sensitive files
+.env
+*.env
+__pycache__/
+instance/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3

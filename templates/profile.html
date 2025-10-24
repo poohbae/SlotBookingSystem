@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Profile - MedCare App{% endblock %}
+{% block content %}
+
+<div class="profile-container">
+    <h1><i class="fa-solid fa-user"></i> Profile</h1>
+
+    <form method="POST">
+        <div class="form-group mb-3">
+            <label><b>Name</b></label>
+            <input name="name" value="{{ user['name'] }}" required>
+        </div>
+
+        <div class="form-group mb-3">
+            <label><b>Email</b></label>
+            <input name="email" type="email" value="{{ email }}" required>
+        </div>
+
+        <div class="form-group mb-3">
+            <label><b>Phone Number</b></label>
+            <input name="phone_number" value="{{ phone }}" required>
+        </div>
+
+        <div class="form-group mb-3">
+            <label><b>Role</b></label>
+            <input value="{{ user['role_name']|capitalize }}" disabled>
+        </div>
+
+        {% if doctor_info %}
+        <hr>
+        <h3><i class="fa-solid fa-stethoscope"></i> Doctor Information</h3>
+
+        <div class="form-group mb-3">
+            <label><b>Specialization</b></label>
+            <input name="specialization" value="{{ doctor_info['specialization'] }}" required>
+        </div>
+
+        <div class="form-group mb-3">
+            <label><b>Experience (years)</b></label>
+            <input name="experience_years" type="number" min="0" value="{{ doctor_info['experience_years'] }}" required>
+        </div>
+        {% endif %}
+
+        <hr>
+        <h3><i class="fa-solid fa-key"></i> Change Password</h3>
+        <p style="font-size: 14px; color: #666;">Leave blank if you do not wish to update your password.</p>
+
+        <div class="form-group mb-3">
+            <label><b>New Password</b></label>
+            <input name="new_password" type="password" placeholder="Enter new password">
+        </div>
+
+        <div class="form-group mb-3">
+            <label><b>Confirm New Password</b></label>
+            <input name="confirm_password" type="password" placeholder="Re-enter new password">
+        </div>
+
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-primary px-5">
+                <i class="fa-solid fa-floppy-disk"></i> Save Changes
+            </button>
+        </div>
+    </form>
+
+    <hr>
+    {% if not user['two_factor_enabled'] %}
+    <div style="text-align:center; margin-top: 25px;">
+        <a href="{{ url_for('twofa_setup') }}" class="btn btn-warning">
+            <i class="fa-solid fa-shield-halved"></i> Enable Two-Factor Authentication
+        </a>
+    </div>
+    {% else %}
+    <p class="text-success mt-3">
+        <i class="fa-solid fa-lock"></i> Two-Factor Authentication is enabled.
+    </p>
+    {% endif %}
+</div>
+
+{% endblock %}
