@@ -15,8 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // ===============================
     //  Signup Password Confirmation
     // ===============================
-    const signupForm = document.querySelector(".signup-container form");
-
+    const signupForm = document.getElementById("signupForm");
     if (signupForm) {
         const email = document.getElementById("email");
         const phone = document.getElementById("phone_number");
@@ -408,48 +407,50 @@ document.addEventListener("DOMContentLoaded", function () {
         dateInput.addEventListener("change", updateTimeSlots);
 
         const bookForm = document.getElementById("bookAppointmentForm");
-        bookForm.addEventListener("submit", (e) => {
-            e.preventDefault();
+        if(bookForm) {
+            bookForm.addEventListener("submit", (e) => {
+                e.preventDefault();
 
-            const specialization = specializationSelect.value;
-            const doctor_id = doctorSelect.value;
-            const date = dateInput.value;
-            const time = timeSelect.value;
+                const specialization = specializationSelect.value;
+                const doctor_id = doctorSelect.value;
+                const date = dateInput.value;
+                const time = timeSelect.value;
 
-            fetch("/book_appointment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ specialization, doctor_id, date, time })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({
-                        icon: "success",
-                        title: "Appointment Booked!",
-                        text: data.message,
-                        confirmButtonColor: "#0b2e59"
-                    }).then(() => location.reload());
-                } else {
+                fetch("/book_appointment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ specialization, doctor_id, date, time })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: "success",
+                            title: "Appointment Booked!",
+                            text: data.message,
+                            confirmButtonColor: "#0b2e59"
+                        }).then(() => location.reload());
+                    } else {
+                        Swal.fire({
+                            icon: "error",
+                            title: "Booking Failed",
+                            text: data.error || "Could not book appointment.",
+                            confirmButtonColor: "#0b2e59"
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
                     Swal.fire({
                         icon: "error",
-                        title: "Booking Failed",
-                        text: data.error || "Could not book appointment.",
+                        title: "Server Error",
+                        text: "Something went wrong while booking.",
                         confirmButtonColor: "#0b2e59"
                     });
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                Swal.fire({
-                    icon: "error",
-                    title: "Server Error",
-                    text: "Something went wrong while booking.",
-                    confirmButtonColor: "#0b2e59"
                 });
             });
-        });
-
+        }
+        
         // Cancel appointment buttons
         document.querySelectorAll(".cancel-btn").forEach(button => {
             button.addEventListener("click", () => {
@@ -504,5 +505,52 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
             });
         }
+    }
+    const updateProfileForm = document.getElementById("updateProfileForm");
+    if (updateProfileForm) {
+        document.getElementById("updateProfileForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const profileData = {
+                name: document.getElementById("name").value,
+                email: document.getElementById("email").value,
+                phone_number: document.getElementById("phone_number").value,
+                new_password: document.getElementById("new_password").value,
+                confirm_password: document.getElementById("confirm_password").value
+            };
+
+            fetch("/update_profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(profileData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: "success",
+                        title: "Profile Updated",
+                        text: data.message,
+                        confirmButtonColor: "#0b2e59"
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Update Failed",
+                        text: data.error,
+                        confirmButtonColor: "#0b2e59"
+                    });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire({
+                    icon: "error",
+                    title: "Server Error",
+                    text: "Something went wrong while updating your profile.",
+                    confirmButtonColor: "#0b2e59"
+                });
+            });
+        });
     }
 });

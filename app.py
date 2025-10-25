@@ -1,4 +1,4 @@
-import bleach, os, re, sqlite3, pyotp, qrcode, io, hashlib, secrets
+import bleach, os, re, sqlite3, pyotp, qrcode, io
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -60,7 +60,7 @@ def login_required(f):
     @wraps(f)
     def wrap(*args, **kwargs):
         if 'user_id' not in session:
-            flash("Please log in ❌", "error")
+            flash("Please log in", "error")
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrap
@@ -196,37 +196,26 @@ def login():
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Find matching user by decrypting emails
-        cur.execute("SELECT * FROM users")
-        users = cur.fetchall()
-        matched = None
-        for u in users:
-            try:
-                dec = cipher.decrypt(u['email'].encode()).decode()
-                if dec.lower() == email.lower():
-                    matched = u; break
-            except: continue
+        cur.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,))
+        user = cur.fetchone()
+        conn.close()
 
-        if matched and check_password_hash(matched['password'], password):
-            if matched['two_factor_enabled']:
-                # First stage OK, now require 2FA
+        if user and check_password_hash(user['password'], password):
+            if user['two_factor_enabled']:
                 session.clear()
-                session['pending_user_id'] = matched['user_id']
-                conn.close()
+                session['pending_user_id'] = user['user_id']
                 return redirect(url_for('twofa_verify'))
             else:
-                # Normal login
                 session.clear()
                 session.permanent = True
-                session['user_id'] = matched['user_id']
-                session['name'] = matched['name']
-                session['role_id'] = matched['role_id']
-                conn.close()
+                session['user_id'] = user['user_id']
+                session['name'] = user['name']
+                session['role_id'] = user['role_id']
                 flash("Login successful!", "success")
                 return route_for_role()
         else:
-            conn.close()
             flash("Invalid email or password!", "error")
+
     return render_template('login.html')
 
 @app.route('/signup', methods=['GET', 'POST'])
@@ -238,6 +227,7 @@ def signup():
         password = request.form.get('password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
          
+        # Validation
         if not is_valid_email(email):
             flash("Invalid email format!", "error")
             return redirect(url_for('signup'))
@@ -262,30 +252,33 @@ def signup():
         cur = conn.cursor()
 
         try:
-            # Encrypt email and phone number
-            encrypted_email = cipher.encrypt(email.encode()).decode()
+            # Check duplicate email
+            cur.execute("SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)", (email,))
+            if cur.fetchone():
+                flash("Email already registered!", "error")
+                return redirect(url_for('signup'))
+
+            # Encrypt phone number
             encrypted_phone = cipher.encrypt(phone_number.encode()).decode()
 
-            # Check duplicates (decrypt existing values first)
-            cur.execute("SELECT email, phone_number FROM users")
+            # Check for duplicate phone (decrypt compare)
+            cur.execute("SELECT user_id, phone_number FROM users")
             existing_users = cur.fetchall()
             for user in existing_users:
                 try:
-                    if email.lower() == cipher.decrypt(user['email'].encode()).decode().lower():
-                        flash("Email already registered!", "error")
-                        return redirect(url_for('signup'))
                     if phone_number == cipher.decrypt(user['phone_number'].encode()).decode():
                         flash("Phone number already registered!", "error")
                         return redirect(url_for('signup'))
                 except Exception:
                     continue  # skip invalid decrypts
 
+            # Hash password securely
             hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
 
             cur.execute("""
                 INSERT INTO users (name, email, password, phone_number, role_id)
                 VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'patient'))
-            """, (name, encrypted_email, hashed_password, encrypted_phone))
+            """, (name, email, hashed_password, encrypted_phone))
             conn.commit()
 
             flash("Signup successful! Please log in.", "success")
@@ -304,7 +297,7 @@ def signup():
 @app.route('/patient_dashboard', methods=['GET'])
 def patient_dashboard():
     if 'user_id' not in session:
-        flash("Please log in to book an appointment ❌", "error")
+        flash("Please log in to book an appointment", "error")
         return redirect(url_for('login'))
 
     conn = get_db_connection()
@@ -446,16 +439,17 @@ def cancel_booking():
     else:
         return jsonify({"success": False, "error": "Appointment not found or already cancelled"}), 404
     
-@app.route('/profile', methods=['GET', 'POST'])
+@app.route('/profile', methods=['GET'])
 def profile():
     if 'user_id' not in session:
         flash("Please log in to access your profile", "error")
         return redirect(url_for('login'))
 
     conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    # Get current user info
+    # Get user info
     cur.execute("""
         SELECT u.*, r.role_name
         FROM users u
@@ -465,56 +459,32 @@ def profile():
     user = cur.fetchone()
 
     if not user:
-        flash("User not found", "error")
         conn.close()
+        flash("User not found", "error")
         return redirect(url_for('login'))
 
-    # Decrypt email and phone
-    user_email = cipher.decrypt(user['email'].encode()).decode()
-    user_phone = cipher.decrypt(user['phone_number'].encode()).decode()
+    # Decrypt phone number
+    try:
+        user_phone = cipher.decrypt(user['phone_number'].encode()).decode()
+    except Exception:
+        user_phone = "N/A"
 
-    # If doctor, get specialization + experience
+    # If doctor, fetch specialization & experience
     doctor_info = None
     if user['role_name'] == 'doctor':
         cur.execute("SELECT specialization, experience_years FROM doctors WHERE user_id = ?", (user['user_id'],))
         doctor_info = cur.fetchone()
 
-    # Handle form submission
-    if request.method == 'POST':
-        name = bleach.clean(request.form.get('name', '').strip())
-        email = request.form.get('email', '').strip()
-        phone = request.form.get('phone_number', '').strip()
-        new_password = request.form.get('new_password', '').strip()
-        confirm_password = request.form.get('confirm_password', '').strip()
-
-        # Encrypt updated values
-        encrypted_email = cipher.encrypt(email.encode()).decode()
-        encrypted_phone = cipher.encrypt(phone.encode()).decode()
-
-        # Update name, email, and phone
-        cur.execute("""
-            UPDATE users
-            SET name = ?, email = ?, phone_number = ?
-            WHERE user_id = ?
-        """, (name, encrypted_email, encrypted_phone, user['user_id']))
-
-        # Handle password change
-        if new_password:
-            if new_password != confirm_password:
-                flash("Passwords do not match!", "error")
-            else:
-                hashed_pw = generate_password_hash(new_password, method='pbkdf2:sha256', salt_length=16)
-                cur.execute("UPDATE users SET password = ? WHERE user_id = ?", (hashed_pw, user['user_id']))
-                flash("Password updated successfully!", "success")
-
-        conn.commit()
-        flash("Profile updated successfully!", "success")
-        conn.close()
-        return redirect(url_for('profile'))
-
     conn.close()
 
-    return render_template('profile.html', user=user, email=user_email, phone=user_phone, doctor_info=doctor_info)
+    return render_template(
+        'profile.html',
+        user=user,
+        email=user['email'],  # plaintext
+        phone=user_phone,
+        doctor_info=doctor_info
+    )
+
 
 @app.route('/logout')
 def logout():
@@ -529,7 +499,7 @@ def logout():
 @app.route('/admin_dashboard')
 def admin_dashboard():
     if 'user_id' not in session:
-        flash("Please log in to access your dashboard ❌", "error")
+        flash("Please log in to access your dashboard", "error")
         return redirect(url_for('login'))
 
     conn = get_db_connection()
@@ -548,15 +518,12 @@ def admin_dashboard():
     """)
     doctors = cur.fetchall()
 
-    # Decrypt sensitive info
     decrypted_doctors = []
     for doc in doctors:
         decrypted_doc = dict(doc)
         try:
-            decrypted_doc['email'] = cipher.decrypt(doc['email'].encode()).decode()
             decrypted_doc['phone_number'] = cipher.decrypt(doc['phone_number'].encode()).decode()
         except Exception:
-            decrypted_doc['email'] = "N/A"
             decrypted_doc['phone_number'] = "N/A"
         decrypted_doctors.append(decrypted_doc)
 
@@ -577,7 +544,6 @@ def admin_dashboard():
         ORDER BY a.date DESC, a.time ASC
     """)
     appointments = cur.fetchall()
-
     conn.close()
 
     return render_template(
@@ -606,21 +572,20 @@ def add_doctor():
     cur = conn.cursor()
 
     try:
-        # Encrypt email and phone number
-        encrypted_email = cipher.encrypt(email.encode()).decode()
+        # Check duplicate email (plaintext)
+        cur.execute("SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)", (email,))
+        if cur.fetchone():
+            return jsonify({"success": False, "error": "Email already exists."})
+
+        # Encrypt phone number
         encrypted_phone = cipher.encrypt(phone_number.encode()).decode()
 
-        # Check if email or phone already exists
-        cur.execute("SELECT email, phone_number FROM users")
+        # Check duplicate phone number (decrypt to compare)
+        cur.execute("SELECT phone_number FROM users")
         existing_users = cur.fetchall()
         for user in existing_users:
             try:
-                db_email = cipher.decrypt(user['email'].encode()).decode()
-                db_phone = cipher.decrypt(user['phone_number'].encode()).decode()
-
-                if db_email == email:
-                    return jsonify({"success": False, "error": "Email already exists."})
-                if db_phone == phone_number:
+                if phone_number == cipher.decrypt(user['phone_number'].encode()).decode():
                     return jsonify({"success": False, "error": "Phone number already exists."})
             except Exception:
                 continue  # skip decryption errors
@@ -632,7 +597,7 @@ def add_doctor():
         cur.execute("""
             INSERT INTO users (name, email, password, phone_number, role_id)
             VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'doctor'))
-        """, (name, encrypted_email, hashed_password, encrypted_phone))
+        """, (name, email, hashed_password, encrypted_phone))
         user_id = cur.lastrowid
 
         # Add corresponding doctor record
