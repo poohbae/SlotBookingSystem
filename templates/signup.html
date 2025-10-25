@@ -4,11 +4,7 @@
 {% block content %}
 <div class="signup-container">
     <h2>Sign Up</h2>
-    <p style="color: #444; font-size: 14px; margin-bottom: 15px; line-height: 1.6;">
-        <b>Note:</b> This registration form is only for <span style="color: #0b2e59; font-weight: bold;">patients</span>.<br>
-        Doctors must contact the admin to create their accounts.
-    </p>
-    <form id="signupForm">
+    <form id="signupForm" method="POST" action="{{ url_for('signup') }}">
         <input type="text" name="name" id="name" placeholder="Name" required>
         <input type="email" name="email" id="email" placeholder="Email" required>
         <input type="text" name="phone_number" id="phone_number" placeholder="Phone Number" required>

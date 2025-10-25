@@ -106,7 +106,7 @@ def twofa_setup():
         if totp.verify(code, valid_window=1):  # allow 30s drift
             cur.execute("""
                 UPDATE users
-                SET two_factor_enabled = 1, two_factor_method = 'totp'
+                SET two_factor_enabled = 1
                 WHERE user_id = ?
             """, (session['user_id'],))
             conn.commit()
