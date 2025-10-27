@@ -3,6 +3,8 @@ from cryptography.fernet import Fernet
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from flask import Flask, render_template, flash, request, redirect, url_for, session, jsonify, send_file, abort
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
@@ -18,6 +20,7 @@ DB_PATH = os.getenv("DATABASE_PATH")
 FERNET_KEY = os.getenv("FERNET_KEY")
 TOTP_ISSUER = os.getenv("TOTP_ISSUER", "Medcare App")
 cipher = Fernet(FERNET_KEY)
+limiter = Limiter(get_remote_address, app=app)
 
 # Session configuration
 app.config['SESSION_PERMANENT'] = True
@@ -65,7 +68,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return wrap
 
-@app.route('/2fa/setup', methods=['GET', 'POST'])
+@app.route('/twofa_setup', methods=['GET', 'POST'])
 @login_required
 def twofa_setup():
     conn = get_db_connection()
@@ -119,7 +122,7 @@ def twofa_setup():
     conn.close()
     return render_template('2fa_setup.html', otpauth_uri=uri)
 
-@app.route('/2fa/qr')
+@app.route('/twofa_qr')
 @login_required
 def twofa_qr():
     uri = request.args.get('uri', '')
@@ -131,7 +134,7 @@ def twofa_qr():
     buf.seek(0)
     return send_file(buf, mimetype='image/png')
 
-@app.route('/2fa/verify', methods=['GET','POST'])
+@app.route('/twofa_verify', methods=['GET','POST'])
 def twofa_verify():
     pending_id = session.get('pending_user_id')
     if not pending_id:
@@ -179,6 +182,11 @@ def route_for_role():
     else:
         # Unknown or missing role — fallback to login
         return redirect(url_for('login'))
+    
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    flash("Too many login attempts. Please try again later.", "error")
+    return render_template("login.html"), 429
 
 # =============================
 # Routes
@@ -188,6 +196,7 @@ def home():
     return render_template("home.html")
 
 @app.route('/login', methods=['GET','POST'])
+@limiter.limit("5 per minute")
 def login():
     if request.method == 'POST':
         email = request.form['email'].strip()
@@ -195,7 +204,6 @@ def login():
 
         conn = get_db_connection()
         cur = conn.cursor()
-
         cur.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,))
         user = cur.fetchone()
         conn.close()
@@ -219,6 +227,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/signup', methods=['GET', 'POST'])
+@limiter.limit("10 per hour")
 def signup():
     if request.method == 'POST':
         name = bleach.clean(request.form.get('name', '').strip())
