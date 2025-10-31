@@ -406,16 +406,29 @@ document.addEventListener("DOMContentLoaded", function () {
         doctorDropdown.addEventListener("change", updateTimeSlots);
         dateInput.addEventListener("change", updateTimeSlots);
 
-        const bookForm = document.getElementById("bookAppointmentForm");
-        if(bookForm) {
-            bookForm.addEventListener("submit", (e) => {
+        const bookAppointmentForm = document.getElementById("bookAppointmentForm");
+        if(bookAppointmentForm) {
+            bookAppointmentForm.addEventListener("submit", (e) => {
                 e.preventDefault();
 
-                const specialization = specializationSelect.value;
-                const doctor_id = doctorSelect.value;
-                const date = dateInput.value;
-                const time = timeSelect.value;
+                const specialization = document.getElementById("specialization").value;
+                const doctor_id = document.getElementById("doctor").value;
+                const date = document.getElementById("date").value;
+                const time = document.getElementById("time").value;
 
+                if (!time || timeDropdown.options.length === 1 &&
+                    timeDropdown.options[0].disabled &&
+                    timeDropdown.options[0].textContent.includes("All available times have passed")
+                ) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "No Available Time",
+                        text: "All available time slots have passed for the selected date.",
+                        confirmButtonColor: "#0b2e59"
+                    });
+                    return; // stop submission
+                }
+                
                 fetch("/book_appointment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -506,6 +519,7 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
     }
+
     const updateProfileForm = document.getElementById("updateProfileForm");
     if (updateProfileForm) {
         document.getElementById("updateProfileForm").addEventListener("submit", (e) => {

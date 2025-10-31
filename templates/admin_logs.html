@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Admin Logs - Medcare App{% endblock %}
+{% block content %}
+<div class="dashboard-container">
+    <h2 style="margin-top: 10px;">Recent User Activities</h2>
+
+    <!-- Filters & CSV/Refresh Buttons -->
+    <div class="filter-bar">
+        <label for="roleFilter">Role:</label>
+        <select id="roleFilter">
+            <option value="all">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="doctor">Doctor</option>
+            <option value="patient">Patient</option>
+        </select>
+
+        <label for="actionFilter" style="margin-left:10px;">Action:</label>
+        <select id="actionFilter">
+            <option value="all">All Actions</option>
+            <option value="Book">Book</option>
+            <option value="Cancel">Cancel</option>
+            <option value="Add">Add</option>
+            <option value="Delete">Delete</option>
+            <option value="Update">Update</option>
+            <option value="Failed">Failed</option>
+        </select>
+
+        <div style="margin-left:auto; display:flex; gap:10px; height: 80px;">
+            <button id="resetFilters" class="btn">Reset</button>
+            <button id="refreshLogs" class="btn" title="Refresh Logs">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+            <button id="downloadCSV" class="btn">
+                <i class="fa-solid fa-file-csv"></i> Download CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <table class="appointment-table">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Action</th>
+                <th>Details</th>
+                <th>IP Address</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody id="logBody">
+            {% if logs and logs|length > 0 %}
+                {% for log in logs %}
+                <tr data-role="{{ log.role_name|lower }}" data-action="{{ log.action|lower }}"
+                    class="{% if 'Failed' in log.action or 'Error' in log.action %}log-failed{% else %}log-success{% endif %}">
+                    <td>{{ log.name }}</td>
+                    <td>{{ log.role_name }}</td>
+                    <td>{{ log.action }}</td>
+                    <td>{{ log.details or '-' }}</td>
+                    <td>{{ log.ip_address }}</td>
+                    <td>{{ log.timestamp }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="empty">No activity logs found.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <!-- Activity Chart -->
+    <div class="chart-container" style="margin-top:40px;">
+        <h3>User Actions (Last 7 Days)</h3>
+        <canvas id="activityChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const roleFilter = document.getElementById("roleFilter");
+    const actionFilter = document.getElementById("actionFilter");
+    const resetBtn = document.getElementById("resetFilters");
+    const refreshBtn = document.getElementById("refreshLogs");
+    const downloadBtn = document.getElementById("downloadCSV");
+    const tbody = document.getElementById("logBody");
+    let chart;
+
+    // === Load Chart ===
+    function loadChart() {
+        fetch('/get_activity_stats')
+            .then(res => res.json())
+            .then(data => {
+                const ctx = document.getElementById('activityChart').getContext('2d');
+                if (chart) chart.destroy();
+
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Admin',
+                                data: data.admin,
+                                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1,
+                                stack: 'roles'
+                            },
+                            {
+                                label: 'Doctor',
+                                data: data.doctor,
+                                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1,
+                                stack: 'roles'
+                            },
+                            {
+                                label: 'Patient',
+                                data: data.patient,
+                                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 1,
+                                stack: 'roles'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    footer: (tooltipItems) => {
+                                        const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
+                                        return `Total: ${total}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                title: { display: true, text: 'Date' }
+                            },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                title: { display: true, text: 'Number of Actions' }
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(err => console.error('Error loading chart:', err));
+    }
+
+    loadChart();
+
+    // === Filtering Logic ===
+    function filterTable() {
+        const selectedRole = roleFilter.value.toLowerCase();
+        const selectedAction = actionFilter.value.toLowerCase();
+        const rows = tbody.querySelectorAll("tr");
+
+        rows.forEach(row => {
+            const rowRole = row.getAttribute("data-role");
+            const rowAction = row.getAttribute("data-action");
+
+            if (!rowRole || !rowAction) return;
+            const roleMatch = selectedRole === "all" || rowRole.includes(selectedRole);
+            const actionMatch = selectedAction === "all" || rowAction.includes(selectedAction);
+
+            row.style.display = (roleMatch && actionMatch) ? "" : "none";
+        });
+    }
+
+    roleFilter.addEventListener("change", filterTable);
+    actionFilter.addEventListener("change", filterTable);
+    resetBtn.addEventListener("click", () => {
+        roleFilter.value = "all";
+        actionFilter.value = "all";
+        filterTable();
+    });
+
+    // === Refresh Button ===
+    refreshBtn.addEventListener("click", () => {
+        fetch('/get_latest_logs')
+            .then(res => res.json())
+            .then(data => {
+                tbody.innerHTML = "";
+                if (data.logs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="empty">No activity logs found.</td></tr>`;
+                } else {
+                    data.logs.forEach(log => {
+                        const cls = log.action.includes("Failed") || log.action.includes("Error")
+                            ? "log-failed" : "log-success";
+                        tbody.innerHTML += `
+                            <tr data-role="${log.role_name.toLowerCase()}" data-action="${log.action.toLowerCase()}" class="${cls}">
+                                <td>${log.name}</td>
+                                <td>${log.role_name}</td>
+                                <td>${log.action}</td>
+                                <td>${log.details || '-'}</td>
+                                <td>${log.ip_address}</td>
+                                <td>${log.timestamp}</td>
+                            </tr>`;
+                    });
+                }
+                loadChart();
+            })
+            .catch(err => console.error("Error refreshing logs:", err));
+    });
+
+    // === Download CSV ===
+    downloadBtn.addEventListener("click", () => {
+        const role = roleFilter.value;
+        const action = actionFilter.value;
+        window.location.href = `/export_logs?role=${role}&action=${action}`;
+    });
+});
+</script>
+{% endblock %}

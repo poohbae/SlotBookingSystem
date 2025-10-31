@@ -1,12 +1,12 @@
-import bleach, os, re, sqlite3, pyotp, qrcode, io
+import bleach, csv, io, os, pyotp, qrcode, re, sqlite3, threading, time
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from flask import Flask, render_template, flash, request, redirect, url_for, session, jsonify, send_file, abort
+from flask import abort, flash, Flask, jsonify, redirect, render_template, Response, request, send_file, session, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Load environment variables from .env
 load_dotenv()
@@ -21,6 +21,7 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 TOTP_ISSUER = os.getenv("TOTP_ISSUER", "Medcare App")
 cipher = Fernet(FERNET_KEY)
 limiter = Limiter(get_remote_address, app=app)
+log_lock = threading.Lock()
 
 # Session configuration
 app.config['SESSION_PERMANENT'] = True
@@ -51,10 +52,49 @@ def make_session_permanent():
 # =============================
 # Database Connection Helper
 # =============================
+with sqlite3.connect(DB_PATH) as conn:
+    conn.execute("PRAGMA journal_mode=WAL;")
+
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
     return conn
+
+# =============================
+# Logging Helpers
+# =============================
+def safe_log_async(user_id, action, details=None, ip_address='Unknown'):
+    t = threading.Thread(target=log_activity, args=(user_id, action, details, ip_address))
+    t.daemon = True
+    t.start()
+
+def log_activity(user_id, action, details=None, ip_address='Unknown', retries=3):
+    """Logs activity safely with retry and thread locking to avoid DB conflicts."""
+    with log_lock:
+        for attempt in range(retries):
+            try:
+                conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL;")
+                cur = conn.cursor()
+
+                cur.execute("""
+                    INSERT INTO activity_logs (user_id, action, details, ip_address)
+                    VALUES (?, ?, ?, ?)
+                """, (user_id, action, details, ip_address))
+                conn.commit()
+                cur.close()
+                conn.close()
+                print(f"[LOGGED] {action} for user_id={user_id}")
+                return
+            except sqlite3.OperationalError as e:
+                if "locked" in str(e).lower() and attempt < retries - 1:
+                    print(f"[WARN] DB locked, retrying ({attempt+1}/10)...")
+                    time.sleep(0.5)
+                else:
+                    print(f"[ERROR] log_activity failed after {attempt+1} attempts: {e}")
+                    return
 
 # =============================
 # 2FA
@@ -114,12 +154,16 @@ def twofa_setup():
             """, (session['user_id'],))
             conn.commit()
             flash("Two-Factor Authentication enabled.", "success")
+            cur.close()
             conn.close()
+            safe_log_async(session['user_id'], "2FA Enabled", "User successfully enabled Two-Factor Authentication", request.remote_addr)
             return route_for_role()
         else:
+            cur.close()
+            conn.close()
+            safe_log_async(session['user_id'], "2FA Setup Failed", "Invalid code entered during setup", request.remote_addr)
             flash("Invalid code. Please try again.", "error")
 
-    conn.close()
     return render_template('2fa_setup.html', otpauth_uri=uri)
 
 @app.route('/twofa_qr')
@@ -146,6 +190,7 @@ def twofa_verify():
     cur.execute("SELECT user_id, name, role_id, two_factor_secret FROM users WHERE user_id= ? ", (pending_id,))
     user = cur.fetchone()
     if not user:
+        cur.close()
         conn.close()
         flash("User not found.", "error")
         return redirect(url_for('login'))
@@ -158,15 +203,20 @@ def twofa_verify():
             session.clear()
             session.permanent = True
             session['user_id'] = user['user_id']
+            session['email'] = user['email']
             session['name'] = user['name']
             session['role_id'] = user['role_id']
+            cur.close()
             conn.close()
+            safe_log_async(user['user_id'], "2FA Success", "2FA verification completed successfully", request.remote_addr)
             flash("2FA verification successful!", "success")
             return route_for_role()
         else:
+            cur.close()
+            conn.close()
+            safe_log_async(user['user_id'], "2FA Failed", f"Incorrect 2FA code entered for user {user['user_id']}", request.remote_addr)
             flash("Invalid 2FA code.", "error")
-
-    conn.close()
+    
     return render_template('2fa_verify.html')
 
 def route_for_role():
@@ -206,12 +256,14 @@ def login():
         cur = conn.cursor()
         cur.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,))
         user = cur.fetchone()
+        cur.close()
         conn.close()
 
         if user and check_password_hash(user['password'], password):
             if user['two_factor_enabled']:
                 session.clear()
                 session['pending_user_id'] = user['user_id']
+                safe_log_async(user['user_id'], "Login (Pending 2FA)", f"User {email} passed password check, pending 2FA", request.remote_addr)
                 return redirect(url_for('twofa_verify'))
             else:
                 session.clear()
@@ -219,9 +271,11 @@ def login():
                 session['user_id'] = user['user_id']
                 session['name'] = user['name']
                 session['role_id'] = user['role_id']
+                safe_log_async(user['user_id'], "Login Success", f"User {email} logged in successfully", request.remote_addr)
                 flash("Login successful!", "success")
                 return route_for_role()
         else:
+            safe_log_async(None, "Failed Login", f"Invalid credentials for email: {email}", request.remote_addr)
             flash("Invalid email or password!", "error")
 
     return render_template('login.html')
@@ -264,6 +318,9 @@ def signup():
             # Check duplicate email
             cur.execute("SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)", (email,))
             if cur.fetchone():
+                cur.close()
+                conn.close()
+                safe_log_async(None, "Failed Signup", f"Email already registered: {email}", request.remote_addr)
                 flash("Email already registered!", "error")
                 return redirect(url_for('signup'))
 
@@ -276,6 +333,9 @@ def signup():
             for user in existing_users:
                 try:
                     if phone_number == cipher.decrypt(user['phone_number'].encode()).decode():
+                        cur.close()
+                        conn.close()
+                        safe_log_async(None, "Failed Signup", f"Phone number already registered: {phone_number}", request.remote_addr)
                         flash("Phone number already registered!", "error")
                         return redirect(url_for('signup'))
                 except Exception:
@@ -289,17 +349,21 @@ def signup():
                 VALUES (?, ?, ?, ?, (SELECT id FROM roles WHERE role_name = 'patient'))
             """, (name, email, hashed_password, encrypted_phone))
             conn.commit()
-
+            user_id = cur.lastrowid
+            cur.close()
+            conn.close()
+            
+            safe_log_async(user_id, "Signup Success", f"New user created: {email}", request.remote_addr)
             flash("Signup successful! Please log in.", "success")
             return redirect(url_for('login'))
 
         except Exception as e:
             conn.rollback()
-            flash(f"Error: {str(e)}", "error")
-
-        finally:
             cur.close()
             conn.close()
+            safe_log_async(None, "Failed Signup", f"Database error for {email}: {str(e)}", request.remote_addr)
+            flash(f"Error: {str(e)}", "error")
+            return redirect(url_for('signup'))
 
     return render_template('signup.html')
 
@@ -310,12 +374,18 @@ def patient_dashboard():
         return redirect(url_for('login'))
 
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     # Fetch logged-in user for 2FA info
     cur.execute("SELECT * FROM users WHERE user_id = ?", (session['user_id'],))
     user = cur.fetchone()
+
+    if not user:
+        cur.close()
+        conn.close()
+        safe_log_async(session['user_id'], "Failed Dashboard Access", "User not found in database", request.remote_addr)  
+        flash("User not found.", "error")
+        return redirect(url_for('login'))
 
     # Fetch user's appointments
     cur.execute("""
@@ -337,7 +407,7 @@ def patient_dashboard():
     # Fetch doctor specializations
     cur.execute("SELECT DISTINCT specialization FROM doctors ORDER BY specialization")
     specializations = [row['specialization'] for row in cur.fetchall()]
-
+    cur.close()
     conn.close()
 
     return render_template(
@@ -361,6 +431,7 @@ def get_doctors(specialization):
         WHERE d.specialization = ?
     """, (specialization,))
     doctors = [dict(row) for row in cur.fetchall()]
+    cur.close()
     conn.close()
     return jsonify(doctors)
 
@@ -371,8 +442,8 @@ def get_available_slots(doctor_id, date):
 
     cur.execute("SELECT time FROM appointments WHERE doctor_id = ? AND date = ?", (doctor_id, date))
     booked_slots = [row['time'] for row in cur.fetchall()]
+    cur.close()
     conn.close()
-
     return jsonify({"booked": booked_slots})
 
 @app.route('/book_appointment', methods=['POST'])
@@ -400,7 +471,9 @@ def book_appointment():
             WHERE doctor_id = ? AND date = ? AND time = ?
         """, (doctor_id, date, time_slot))
         if cur.fetchone():
+            cur.close()
             conn.close()
+            safe_log_async(session['user_id'], "Failed Booking", f"Slot already booked for Doctor ID {doctor_id} on {date} at {time_slot}", request.remote_addr)
             return jsonify({"success": False, "error": "Selected time slot is already booked."}), 409
 
         # Insert new appointment
@@ -409,14 +482,17 @@ def book_appointment():
             VALUES (?, ?, ?, ?)
         """, (session['user_id'], doctor_id, date, time_slot))
         conn.commit()
-
+        cur.close()
+        conn.close()
+        safe_log_async(session['user_id'], "Book Appointment", f"Doctor ID: {doctor_id}, Date: {date}, Time: {time_slot}", request.remote_addr)
         return jsonify({"success": True, "message": "Appointment booked successfully!"})
     except Exception as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
+        cur.close()
         conn.close()
-
+        safe_log_async(session['user_id'], "Failed Booking", f"Database error booking appointment: {str(e)}", request.remote_addr)
+        return jsonify({"success": False, "error": str(e)}), 500
+        
 @app.route('/cancel_booking', methods=['POST'])
 def cancel_booking():
     if 'user_id' not in session:
@@ -441,13 +517,16 @@ def cancel_booking():
     
     conn.commit()
     updated = cur.rowcount
+    cur.close()
     conn.close()
 
     if updated:
+        safe_log_async(session['user_id'], "Cancel Appointment", f"Appointment ID {appointment_id} cancelled", request.remote_addr)
         return jsonify({"success": True, "message": "Appointment cancelled successfully"})
     else:
+        safe_log_async(session['user_id'], "Failed Cancel Appointment", f"Appointment ID {appointment_id} not found or already cancelled", request.remote_addr)
         return jsonify({"success": False, "error": "Appointment not found or already cancelled"}), 404
-    
+
 @app.route('/profile', methods=['GET'])
 def profile():
     if 'user_id' not in session:
@@ -468,7 +547,9 @@ def profile():
     user = cur.fetchone()
 
     if not user:
+        cur.close()
         conn.close()
+        safe_log_async(session['user_id'], "Failed Profile Access", "User record not found in database", request.remote_addr)
         flash("User not found", "error")
         return redirect(url_for('login'))
 
@@ -484,6 +565,7 @@ def profile():
         cur.execute("SELECT specialization, experience_years FROM doctors WHERE user_id = ?", (user['user_id'],))
         doctor_info = cur.fetchone()
 
+    cur.close()
     conn.close()
 
     return render_template(
@@ -494,10 +576,11 @@ def profile():
         doctor_info=doctor_info
     )
 
-
 @app.route('/logout')
 def logout():
-    # Clear entire session
+    user_id = session.get('user_id')
+    email = session.get('email')
+    safe_log_async(user_id, "Logout", f"User {email} has logged out successfully", request.remote_addr)
     session.clear()
     flash("You have been logged out successfully.", "success")
     return redirect(url_for('home'))
@@ -553,13 +636,26 @@ def admin_dashboard():
         ORDER BY a.date DESC, a.time ASC
     """)
     appointments = cur.fetchall()
+
+    # Fetch log activties
+    cur.execute("""
+        SELECT a.*, u.name, r.role_name
+        FROM activity_logs a
+        JOIN users u ON a.user_id = u.user_id
+        JOIN roles r ON u.role_id = r.id
+        ORDER BY a.timestamp DESC
+        LIMIT 50
+    """)
+    logs = cur.fetchall()
+    cur.close()
     conn.close()
 
     return render_template(
         'admin_dashboard.html',
         two_factor_enabled=user['two_factor_enabled'],
         doctors=decrypted_doctors,
-        appointments=appointments
+        appointments=appointments,
+        logs=logs
     )
 
 @app.route('/add_doctor', methods=['POST'])
@@ -616,14 +712,17 @@ def add_doctor():
         """, (user_id, specialization, experience_years))
 
         conn.commit()
+        cur.close()
+        conn.close()
+        safe_log_async(session.get('user_id'), "Add Doctor", f"Added doctor {email} successfully", request.remote_addr)
         return jsonify({"success": True})
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)})
-
-    finally:
+        cur.close()
         conn.close()
+        safe_log_async(session.get('user_id'), "Failed Add Doctor", f"Database error: {str(e)}", request.remote_addr)
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/delete_doctor', methods=['POST'])
 def delete_doctor():
@@ -648,15 +747,157 @@ def delete_doctor():
 
         # Delete the linked user record
         cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
-
         conn.commit()
+        cur.close()
+        conn.close()
+        safe_log_async(session.get('user_id'), "Delete Doctor", f"Deleted Doctor ID: {doctor_id} and User ID: {user_id}", request.remote_addr)
         return jsonify({"success": True})
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"success": False, "error": str(e)})
-    finally:
+        cur.close()
         conn.close()
+        safe_log_async(session.get('user_id'), "Failed Delete Doctor", f"Error deleting doctor {doctor_id}: {str(e)}", request.remote_addr)
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/admin_logs')
+def admin_logs():
+    if 'user_id' not in session:
+        flash("Please log in to access your dashboard", "error")
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Fetch log activties
+    cur.execute("""
+        SELECT a.*, u.name, r.role_name
+        FROM activity_logs a
+        JOIN users u ON a.user_id = u.user_id
+        JOIN roles r ON u.role_id = r.id
+        ORDER BY a.timestamp DESC
+        LIMIT 50
+    """)
+    logs = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return render_template('admin_logs.html', logs=logs)
+
+@app.route('/get_activity_stats')
+def get_activity_stats():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT DATE(a.timestamp) as day, r.role_name, COUNT(*) as total
+        FROM activity_logs a
+        JOIN users u ON a.user_id = u.user_id
+        JOIN roles r ON u.role_id = r.id
+        WHERE datetime(a.timestamp) >= datetime('now', '-7 days')
+        GROUP BY DATE(a.timestamp), r.role_name
+        ORDER BY day
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    data = {}
+    for row in rows:
+        day = row['day']
+        role = row['role_name'].capitalize()
+        total = row['total']
+        if day not in data:
+            data[day] = {'Admin': 0, 'Doctor': 0, 'Patient': 0}
+        if role in data[day]:
+            data[day][role] = total
+
+    labels = sorted(data.keys())
+    admin_values = [data[d]['Admin'] for d in labels]
+    doctor_values = [data[d]['Doctor'] for d in labels]
+    patient_values = [data[d]['Patient'] for d in labels]
+
+    return jsonify({
+        'labels': labels,
+        'admin': admin_values,
+        'doctor': doctor_values,
+        'patient': patient_values
+    })
+
+@app.route('/get_latest_logs')
+def get_latest_logs():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT a.*, u.name, r.role_name
+        FROM activity_logs a
+        JOIN users u ON a.user_id = u.user_id
+        JOIN roles r ON u.role_id = r.id
+        ORDER BY a.timestamp DESC
+        LIMIT 50
+    """)
+    logs = [dict(row) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify({"logs": logs})
+
+@app.route('/export_logs')
+def export_logs():
+    """Exports filtered activity logs as a CSV file."""
+    if 'user_id' not in session:
+        flash("Please log in first", "error")
+        return redirect(url_for('login'))
+
+    role_filter = request.args.get('role', 'all').lower()
+    action_filter = request.args.get('action', 'all').lower()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    query = """
+        SELECT a.timestamp, u.name, r.role_name, a.action, a.details, a.ip_address
+        FROM activity_logs a
+        JOIN users u ON a.user_id = u.user_id
+        JOIN roles r ON u.role_id = r.id
+        ORDER BY a.timestamp DESC
+    """
+    cur.execute(query)
+    logs = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # Apply filters in Python for simplicity
+    filtered_logs = []
+    for log in logs:
+        role_name = log['role_name'].lower()
+        action = log['action'].lower()
+        if (role_filter == 'all' or role_filter in role_name) and (action_filter == 'all' or action_filter in action):
+            filtered_logs.append(log)
+
+    # Generate CSV
+    def generate():
+        data = io.StringIO()
+        writer = csv.writer(data)
+        # Header
+        writer.writerow(['Timestamp', 'User', 'Role', 'Action', 'Details', 'IP Address'])
+        yield data.getvalue()
+        data.seek(0)
+        data.truncate(0)
+        # Rows
+        for log in filtered_logs:
+            writer.writerow([
+                log['timestamp'],
+                log['name'],
+                log['role_name'],
+                log['action'],
+                log['details'] or '',
+                log['ip_address']
+            ])
+            yield data.getvalue()
+            data.seek(0)
+            data.truncate(0)
+
+    filename = f"medcare_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(generate(), mimetype='text/csv',
+                    headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 # =============================
 # Doctor Routes
@@ -679,7 +920,9 @@ def doctor_dashboard():
     doctor = cur.fetchone()
     if not doctor:
         flash("Doctor profile not found", "error")
+        cur.close()
         conn.close()
+        safe_log_async(session['user_id'], "Failed Dashboard Access", "Doctor profile missing or not found", request.remote_addr)
         return redirect(url_for('login'))
 
     # Fetch all appointments for this doctor
@@ -708,6 +951,7 @@ def doctor_dashboard():
             decrypted_a['phone_number'] = "N/A"
         decrypted_appointments.append(decrypted_a)
 
+    cur.close()
     conn.close()
 
     # Render dashboard with 2FA info
@@ -720,7 +964,7 @@ def doctor_dashboard():
 
 @app.route('/update_appointment_status', methods=['POST'])
 def update_appointment_status():
-    if 'user_id' not in session or session.get('role') != 'doctor':
+    if 'user_id' not in session or session.get('role_id') != 2:
         return jsonify({"success": False, "error": "Unauthorized"}), 403
 
     data = request.get_json()
@@ -728,6 +972,7 @@ def update_appointment_status():
     status = data.get("status")
 
     if not appointment_id or status not in ['approved', 'rejected']:
+        safe_log_async(session['user_id'], "Failed Update Appointment", f"Invalid data provided: appointment_id={appointment_id}, status={status}", request.remote_addr)
         return jsonify({"success": False, "error": "Invalid data"}), 400
 
     conn = get_db_connection()
@@ -742,14 +987,24 @@ def update_appointment_status():
     valid = cur.fetchone()
 
     if not valid:
+        cur.close()
         conn.close()
+        safe_log_async(session['user_id'], "Unauthorized Update", f"Attempt to modify unauthorized appointment ID {appointment_id}", request.remote_addr)
         return jsonify({"success": False, "error": "Unauthorized or appointment not found"}), 403
 
-    cur.execute("UPDATE appointments SET status = ? WHERE id = ?", (status, appointment_id))
-    conn.commit()
-    conn.close()
-
-    return jsonify({"success": True})
+    try:
+        cur.execute("UPDATE appointments SET status = ? WHERE id = ?", (status, appointment_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+        safe_log_async(session['user_id'], "Update Appointment Status", f"Appointment {appointment_id} marked as {status}")
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        safe_log_async(session['user_id'], "Failed Update Appointment", f"Database error while updating appointment {appointment_id}: {str(e)}", request.remote_addr)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # =============================
 # Helper Functions
@@ -771,4 +1026,4 @@ def is_strong_password(pw):
     )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False, threaded=False, use_reloader=False)

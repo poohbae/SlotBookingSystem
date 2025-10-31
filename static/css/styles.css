@@ -12,7 +12,7 @@ body {
     font-family: 'Poppins', sans-serif;
     margin: 0;
     padding: 0;
-    background: rgb(255, 255, 255);
+    background: rgb(245, 245, 245);
     background-size: cover;
     color: black;
     text-align: center;
@@ -275,10 +275,10 @@ button:active {
 }
 
 .empty {
-    font-size: 18px; 
-    color: #888; 
-    width: 100%; 
     text-align: center;
+    color: #666;
+    padding: 15px;
+    font-style: italic;
 }
 
 /* Dashboard Pages */
@@ -307,25 +307,20 @@ button:active {
 }
 
 .status {
+    padding: 5px 10px;
+    border-radius: 5px;
+    color: white;
     font-weight: bold;
     text-transform: capitalize;
 }
 
-.status-approved {
-    color: green;
-}
+.status-approved { color: green; }
 
-.status-rejected {
-    color: red;
-}
+.status-rejected { color: red; }
 
-.status-cancelled {
-    color: gray;
-}
+.status-cancelled { color: gray; }
 
-.status-pending {
-    color: orange;
-}
+.status-pending { color: orange; }
 
 /* Cancel Button */
 .cancel-btn {
@@ -378,11 +373,48 @@ button:active {
 }
 
 .appointment-table {
-    width:100%; 
-    border-collapse: collapse; 
-    background: white; 
-    border-radius: 10px; 
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    background-color: #f9f9f9; /* light gray background for subtle contrast */
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    font-size: 15px;
+}
+
+.appointment-table thead {
+    background: #0b2e59;
+    color: white;
+    text-align: center;
+}
+
+.appointment-table th {
+    padding: 12px 10px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.appointment-table td {
+    padding: 10px;
+    text-align: center;
+    color: #333;
+}
+
+.appointment-table tbody tr:nth-child(even) {
+    background-color: #f2f4f7;
+}
+
+.appointment-table tbody tr:hover {
+    background-color: #eaf2ff;
+    transition: 0.2s ease;
+}
+
+.appointment-table td.empty {
+    text-align: center;
+    padding: 20px;
+    color: #777;
+    font-style: italic;
 }
 
 .doctor-card {
@@ -528,6 +560,37 @@ button:active {
     align-items: center !important;
     justify-content: center !important;
   font-size: 1rem !important;
+}
+
+/* Log Activities */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 15px;
+    margin-bottom: 20px;
+    background: #f8f9fa;
+    padding: 25px 25px;
+    border-radius: 8px;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+.filter-bar label {
+    font-weight: bold;
+}
+
+.filter-bar select, .filter-bar .filter-btn {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: white;
+}
+
+.log-success td { color: #0b2e59; }
+
+.log-failed td {
+    color: #b22222;
+    font-weight: 500;
 }
 
 /* Flash Messages */

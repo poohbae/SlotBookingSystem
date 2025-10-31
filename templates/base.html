@@ -30,7 +30,8 @@
                     {# Admin Navigation #}
                     {% if session.get('role_id') == 1 %}
                         <li><a href="{{ url_for('admin_dashboard') }}" class="nav-btn">Home</a></li>
-                        <li><a href="{{ url_for('admin_dashboard') }}#doctorList" class="nav-btn">Manage Doctors</a></li>
+                        <li><a href="{{ url_for('admin_dashboard') }}#doctor-list" class="nav-btn">Manage Doctors</a></li>
+                        <li><a href="{{ url_for('admin_logs') }}" class="nav-btn">Logs</a></li>
                     {# Doctor Navigation #}
                     {% elif session.get('role_id') == 2 %}
                         <li><a href="{{ url_for('doctor_dashboard') }}" class="nav-btn">Home</a></li>

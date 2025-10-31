@@ -15,43 +15,44 @@
 
     <!-- Appointment Overview -->
     <h2 class="list-title">All Appointments</h2>
-    {% if appointments %}
     <table class="appointment-table">
-        <thead style="background: #0b2e59; color: white;">
+        <thead>
             <tr>
-                <th style="padding: 10px;">Patient</th>
-                <th style="padding: 10px;">Doctor</th>
-                <th style="padding: 10px;">Specialization</th>
-                <th style="padding: 10px;">Date</th>
-                <th style="padding: 10px;">Time</th>
-                <th style="padding: 10px;">Status</th>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Specialization</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
-            {% for appt in appointments %}
-            <tr style="text-align: center; border-bottom: 1px solid #ddd;">
-                <td style="padding: 10px;">{{ appt['patient_name'] }}</td>
-                <td style="padding: 10px;">{{ appt['doctor_name'] }}</td>
-                <td style="padding: 10px;">{{ appt['doctor_specialization'] }}</td>
-                <td style="padding: 10px;">{{ appt['date'] }}</td>
-                <td style="padding: 10px;">{{ appt['time'] }}</td>
-                <td style="padding: 10px;">
-                    <span class="status status-{{ appt['status'] }}">{{ appt['status'] | capitalize }}</span>
-                </td>
-            </tr>
-            {% endfor %}
+            {% if appointments and appointments|length > 0 %}
+                {% for appt in appointments %}
+                <tr>
+                    <td>{{ appt['patient_name'] }}</td>
+                    <td>{{ appt['doctor_name'] }}</td>
+                    <td>{{ appt['doctor_specialization'] }}</td>
+                    <td>{{ appt['date'] }}</td>
+                    <td>{{ appt['time'] }}</td>
+                    <td>
+                        <span class="status status-{{ appt['status'] }}">{{ appt['status'] | capitalize }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="empty">
+                        No appointments booked yet.
+                    </td>
+                </tr>
+            {% endif %}
         </tbody>
     </table>
-    {% else %}
-        <p class="empty">
-            <i class="fa-regular fa-face-frown"></i>
-            No appointments booked yet.
-        </p>
-    {% endif %}
 
     <!-- Registered Doctors -->
     <h2 class="list-title"">Registered Doctors</h2>
-        <div id="doctorList" class="doctor-list">
+        <div id="doctor-list" class="doctor-list">
         {% if doctors %}
             {% for doc in doctors %}
             <div class="appointment-card">
