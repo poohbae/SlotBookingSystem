@@ -4,7 +4,7 @@
 <div class="dashboard-container">
     <h2 style="margin-top: 10px;">Recent User Activities</h2>
 
-    <!-- Filters & CSV/Refresh Buttons -->
+    <!-- Filters & Buttons -->
     <div class="filter-bar">
         <label for="roleFilter">Role:</label>
         <select id="roleFilter">
@@ -14,30 +14,27 @@
             <option value="patient">Patient</option>
         </select>
 
-        <label for="actionFilter" style="margin-left:10px;">Action:</label>
-        <select id="actionFilter">
-            <option value="all">All Actions</option>
-            <option value="Book">Book</option>
-            <option value="Cancel">Cancel</option>
-            <option value="Add">Add</option>
-            <option value="Delete">Delete</option>
-            <option value="Update">Update</option>
-            <option value="Failed">Failed</option>
+        <label for="dateFilter" style="margin-left:10px;">Date:</label>
+        <select id="dateFilter">
+            <option value="all">All Dates</option>
+            <option value="today">Today</option>
+            <option value="7days">Last 7 Days</option>
+            <option value="30days">Last 30 Days</option>
         </select>
 
         <div style="margin-left:auto; display:flex; gap:10px; height: 80px;">
-            <button id="resetFilters" class="btn">Reset</button>
             <button id="refreshLogs" class="btn" title="Refresh Logs">
                 <i class="fa-solid fa-rotate-right"></i>
+                <span class="spinner" style="display:none; margin-left:5px;"></span>
             </button>
             <button id="downloadCSV" class="btn">
-                <i class="fa-solid fa-file-csv"></i> Download CSV
+                <i class="fa-solid fa-file-csv"></i>
             </button>
         </div>
     </div>
 
     <!-- Logs Table -->
-    <table class="appointment-table">
+    <table id="logTable" class="appointment-table">
         <thead>
             <tr>
                 <th>User</th>
@@ -51,7 +48,7 @@
         <tbody id="logBody">
             {% if logs and logs|length > 0 %}
                 {% for log in logs %}
-                <tr data-role="{{ log.role_name|lower }}" data-action="{{ log.action|lower }}"
+                <tr data-role="{{ log.role_name|lower }}"
                     class="{% if 'Failed' in log.action or 'Error' in log.action %}log-failed{% else %}log-success{% endif %}">
                     <td>{{ log.name }}</td>
                     <td>{{ log.role_name }}</td>
@@ -62,9 +59,7 @@
                 </tr>
                 {% endfor %}
             {% else %}
-                <tr>
-                    <td colspan="6" class="empty">No activity logs found.</td>
-                </tr>
+                <tr><td colspan="6" class="empty">No activity logs found.</td></tr>
             {% endif %}
         </tbody>
     </table>
@@ -81,16 +76,54 @@
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const roleFilter = document.getElementById("roleFilter");
-    const actionFilter = document.getElementById("actionFilter");
-    const resetBtn = document.getElementById("resetFilters");
+    const dateFilter = document.getElementById("dateFilter");
     const refreshBtn = document.getElementById("refreshLogs");
-    const downloadBtn = document.getElementById("downloadCSV");
     const tbody = document.getElementById("logBody");
+    const table = document.getElementById("logTable");
+    const downloadBtn = document.getElementById("downloadCSV");
     let chart;
+
+    // === Filtering Logic ===
+    function filterTable() {
+        const selectedRole = roleFilter.value.toLowerCase();
+        const selectedDate = dateFilter.value.toLowerCase();
+        const rows = tbody.querySelectorAll("tr");
+        const now = new Date();
+
+        rows.forEach(row => {
+            const rowRole = row.getAttribute("data-role");
+            const rowTime = new Date(row.children[5].textContent); // timestamp col
+
+            let dateMatch = true;
+
+            if (selectedDate === "today") {
+                const today = now.toDateString();
+                dateMatch = rowTime.toDateString() === today;
+            } else if (selectedDate === "7days") {
+                const weekAgo = new Date(now);
+                weekAgo.setDate(now.getDate() - 7);
+                dateMatch = rowTime >= weekAgo;
+            } else if (selectedDate === "30days") {
+                const monthAgo = new Date(now);
+                monthAgo.setDate(now.getDate() - 30);
+                dateMatch = rowTime >= monthAgo;
+            }
+
+            const roleMatch = selectedRole === "all" || rowRole.includes(selectedRole);
+
+            row.style.display = (roleMatch && dateMatch) ? "" : "none";
+        });
+    }
+
+    roleFilter.addEventListener("change", filterTable);
+    dateFilter.addEventListener("change", filterTable);
 
     // === Load Chart ===
     function loadChart() {
-        fetch('/get_activity_stats')
+        const selectedRole = roleFilter.value;
+        const selectedDate = dateFilter.value;
+
+        fetch(`/get_activity_stats?role=${selectedRole}&date=${selectedDate}`)
             .then(res => res.json())
             .then(data => {
                 const ctx = document.getElementById('activityChart').getContext('2d');
@@ -161,38 +194,29 @@ document.addEventListener("DOMContentLoaded", function() {
 
     loadChart();
 
-    // === Filtering Logic ===
-    function filterTable() {
-        const selectedRole = roleFilter.value.toLowerCase();
-        const selectedAction = actionFilter.value.toLowerCase();
-        const rows = tbody.querySelectorAll("tr");
-
-        rows.forEach(row => {
-            const rowRole = row.getAttribute("data-role");
-            const rowAction = row.getAttribute("data-action");
-
-            if (!rowRole || !rowAction) return;
-            const roleMatch = selectedRole === "all" || rowRole.includes(selectedRole);
-            const actionMatch = selectedAction === "all" || rowAction.includes(selectedAction);
-
-            row.style.display = (roleMatch && actionMatch) ? "" : "none";
-        });
-    }
-
-    roleFilter.addEventListener("change", filterTable);
-    actionFilter.addEventListener("change", filterTable);
-    resetBtn.addEventListener("click", () => {
-        roleFilter.value = "all";
-        actionFilter.value = "all";
-        filterTable();
-    });
+    roleFilter.addEventListener("change", loadChart);
+    dateFilter.addEventListener("change", loadChart);
 
     // === Refresh Button ===
     refreshBtn.addEventListener("click", () => {
+        const icon = refreshBtn.querySelector("i");
+
+        // Reset filters
+        roleFilter.value = "all";
+        dateFilter.value = "all";
+        filterTable();
+        loadChart(); 
+
+        // Start animation
+        refreshBtn.classList.add("loading");
+        table.classList.add("loading");
+        tbody.classList.remove("loaded");
+
         fetch('/get_latest_logs')
             .then(res => res.json())
             .then(data => {
                 tbody.innerHTML = "";
+
                 if (data.logs.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="6" class="empty">No activity logs found.</td></tr>`;
                 } else {
@@ -200,7 +224,8 @@ document.addEventListener("DOMContentLoaded", function() {
                         const cls = log.action.includes("Failed") || log.action.includes("Error")
                             ? "log-failed" : "log-success";
                         tbody.innerHTML += `
-                            <tr data-role="${log.role_name.toLowerCase()}" data-action="${log.action.toLowerCase()}" class="${cls}">
+                            <tr data-role="${log.role_name.toLowerCase()}" 
+                                class="${cls}">
                                 <td>${log.name}</td>
                                 <td>${log.role_name}</td>
                                 <td>${log.action}</td>
@@ -210,16 +235,27 @@ document.addEventListener("DOMContentLoaded", function() {
                             </tr>`;
                     });
                 }
-                loadChart();
+
+                // Stop shimmer + spin after delay
+                setTimeout(() => {
+                    refreshBtn.classList.remove("loading");
+                    table.classList.remove("loading");
+                    tbody.classList.add("loaded");
+                    loadChart();
+                }, 400);
             })
-            .catch(err => console.error("Error refreshing logs:", err));
+            .catch(err => {
+                console.error("Error refreshing logs:", err);
+                refreshBtn.classList.remove("loading");
+                table.classList.remove("loading");
+            });
     });
 
     // === Download CSV ===
     downloadBtn.addEventListener("click", () => {
         const role = roleFilter.value;
-        const action = actionFilter.value;
-        window.location.href = `/export_logs?role=${role}&action=${action}`;
+        const date = dateFilter.value;
+        window.location.href = `/export_logs?role=${role}&date=${date}`;
     });
 });
 </script>

@@ -768,15 +768,13 @@ def admin_logs():
 
     conn = get_db_connection()
     cur = conn.cursor()
-
-    # Fetch log activties
     cur.execute("""
         SELECT a.*, u.name, r.role_name
         FROM activity_logs a
         JOIN users u ON a.user_id = u.user_id
         JOIN roles r ON u.role_id = r.id
+        WHERE datetime(a.timestamp) >= datetime('now', '-7 days')
         ORDER BY a.timestamp DESC
-        LIMIT 50
     """)
     logs = cur.fetchall()
     cur.close()
@@ -786,30 +784,54 @@ def admin_logs():
 
 @app.route('/get_activity_stats')
 def get_activity_stats():
+    role = request.args.get('role', 'all').lower()
+    date_filter = request.args.get('date', '7days').lower()
+
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT DATE(a.timestamp) as day, r.role_name, COUNT(*) as total
+
+    # Build date filter
+    if date_filter == 'today':
+        date_condition = "DATE(a.timestamp) = DATE('now')"
+    elif date_filter == '30days':
+        date_condition = "datetime(a.timestamp) >= datetime('now', '-30 days')"
+    else:  # default: last 7 days
+        date_condition = "datetime(a.timestamp) >= datetime('now', '-7 days')"
+
+    # Build role filter
+    role_condition = ""
+    if role != 'all':
+        role_condition = f"AND LOWER(r.role_name) = ?"
+
+    query = f"""
+        SELECT DATE(a.timestamp) AS day, r.role_name, COUNT(*) AS total
         FROM activity_logs a
         JOIN users u ON a.user_id = u.user_id
         JOIN roles r ON u.role_id = r.id
-        WHERE datetime(a.timestamp) >= datetime('now', '-7 days')
+        WHERE {date_condition} {role_condition}
         GROUP BY DATE(a.timestamp), r.role_name
         ORDER BY day
-    """)
+    """
+
+    if role != 'all':
+        cur.execute(query, (role,))
+    else:
+        cur.execute(query)
+
     rows = cur.fetchall()
     cur.close()
     conn.close()
 
+    # Aggregate results
     data = {}
     for row in rows:
         day = row['day']
-        role = row['role_name'].capitalize()
+        role_name = row['role_name'].capitalize()
         total = row['total']
         if day not in data:
             data[day] = {'Admin': 0, 'Doctor': 0, 'Patient': 0}
-        if role in data[day]:
-            data[day][role] = total
+        if role_name in data[day]:
+            data[day][role_name] = total
 
     labels = sorted(data.keys())
     admin_values = [data[d]['Admin'] for d in labels]
