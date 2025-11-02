@@ -37,12 +37,13 @@
     <table id="logTable" class="appointment-table">
         <thead>
             <tr>
+                <th>Timestamp</th>
                 <th>User</th>
                 <th>Role</th>
                 <th>Action</th>
                 <th>Details</th>
                 <th>IP Address</th>
-                <th>Timestamp</th>
+                <th>Device Info</th>
             </tr>
         </thead>
         <tbody id="logBody">
@@ -50,12 +51,13 @@
                 {% for log in logs %}
                 <tr data-role="{{ log.role_name|lower }}"
                     class="{% if 'Failed' in log.action or 'Error' in log.action %}log-failed{% else %}log-success{% endif %}">
+                    <td>{{ log.timestamp }}</td>
                     <td>{{ log.name }}</td>
                     <td>{{ log.role_name }}</td>
                     <td>{{ log.action }}</td>
                     <td>{{ log.details or '-' }}</td>
                     <td>{{ log.ip_address }}</td>
-                    <td>{{ log.timestamp }}</td>
+                    <td>{{ log.device_info }}</td>
                 </tr>
                 {% endfor %}
             {% else %}

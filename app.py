@@ -64,12 +64,18 @@ def get_db_connection():
 # =============================
 # Logging Helpers
 # =============================
-def safe_log_async(user_id, action, details=None, ip_address='Unknown'):
-    t = threading.Thread(target=log_activity, args=(user_id, action, details, ip_address))
+def safe_log_async(user_id, action, details, ip_address):
+    device_info = getattr(request.user_agent, 'string', 'Unknown Device')
+    
+    # Run in a separate thread to prevent blocking
+    t = threading.Thread(
+        target=log_activity,
+        args=(user_id, action, details, ip_address, device_info)
+    )
     t.daemon = True
     t.start()
 
-def log_activity(user_id, action, details=None, ip_address='Unknown', retries=3):
+def log_activity(user_id, action, details=None, ip_address='Unknown', device_info='Unknown Device', retries=3):
     """Logs activity safely with retry and thread locking to avoid DB conflicts."""
     with log_lock:
         for attempt in range(retries):
@@ -80,9 +86,9 @@ def log_activity(user_id, action, details=None, ip_address='Unknown', retries=3)
                 cur = conn.cursor()
 
                 cur.execute("""
-                    INSERT INTO activity_logs (user_id, action, details, ip_address)
-                    VALUES (?, ?, ?, ?)
-                """, (user_id, action, details, ip_address))
+                    INSERT INTO activity_logs (user_id, action, details, ip_address, device_info)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (user_id, action, details, ip_address, device_info))
                 conn.commit()
                 cur.close()
                 conn.close()
@@ -90,7 +96,7 @@ def log_activity(user_id, action, details=None, ip_address='Unknown', retries=3)
                 return
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < retries - 1:
-                    print(f"[WARN] DB locked, retrying ({attempt+1}/10)...")
+                    print(f"[WARN] DB locked, retrying ({attempt+1}/{retries})...")
                     time.sleep(0.5)
                 else:
                     print(f"[ERROR] log_activity failed after {attempt+1} attempts: {e}")
@@ -999,7 +1005,7 @@ def export_logs():
     conn = get_db_connection()
     cur = conn.cursor()
     query = """
-        SELECT a.timestamp, u.name, r.role_name, a.action, a.details, a.ip_address
+        SELECT a.timestamp, u.name, r.role_name, a.action, a.details, a.ip_address, a.device_info
         FROM activity_logs a
         JOIN users u ON a.user_id = u.user_id
         JOIN roles r ON u.role_id = r.id
@@ -1023,7 +1029,7 @@ def export_logs():
         data = io.StringIO()
         writer = csv.writer(data)
         # Header
-        writer.writerow(['Timestamp', 'User', 'Role', 'Action', 'Details', 'IP Address'])
+        writer.writerow(['Timestamp', 'User', 'Role', 'Action', 'Details', 'IP Address', 'Device Info'])
         yield data.getvalue()
         data.seek(0)
         data.truncate(0)
@@ -1035,7 +1041,8 @@ def export_logs():
                 log['role_name'],
                 log['action'],
                 log['details'] or '',
-                log['ip_address']
+                log['ip_address'],
+                log['device_info']
             ])
             yield data.getvalue()
             data.seek(0)
