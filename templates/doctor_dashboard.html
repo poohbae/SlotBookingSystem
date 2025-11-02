@@ -15,9 +15,7 @@
 
     <section class="appointments-container">
         {% if appointments %}
-            <p style="color: #444; width: 100%; text-align: center;">
-                Here are your upcoming appointments.
-            </p>
+            <h2 class="list-title">All Appointments</h2>
 
             {% for appointment in appointments %}
             <div class="appointment-card" id="appointment-{{ appointment['appointment_id'] }}">
@@ -35,8 +33,21 @@
 
                 {% if appointment['status'] == 'pending' %}
                     <div class="action-buttons">
-                        <button class="approve-btn" data-id="{{ appointment['appointment_id'] }}">Approve</button>
-                        <button class="reject-btn" data-id="{{ appointment['appointment_id'] }}">Reject</button>
+                        <button class="approve-btn" 
+                                data-id="{{ appointment['appointment_id'] }}" 
+                                data-patient="{{ appointment['patient_name'] }}" 
+                                data-date="{{ appointment['date'] }}" 
+                                data-time="{{ appointment['time'] }}">
+                            Approve
+                        </button>
+
+                        <button class="reject-btn" 
+                                data-id="{{ appointment['appointment_id'] }}" 
+                                data-patient="{{ appointment['patient_name'] }}" 
+                                data-date="{{ appointment['date'] }}" 
+                                data-time="{{ appointment['time'] }}">
+                            Reject
+                        </button>
                     </div>
                 {% endif %}
             </div>

@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
-    console.log("✅ script.js loaded successfully!");
+    console.log("script.js loaded successfully!");
 
     // ===============================
     //  Auto-hide Flash Messages
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // ===============================
-    //  Admin Dashboard (Add / Delete Doctor)
+    //  Admin Dashboard (Add , Edit and Delete Doctor)
     // ===============================
     const addDoctorForm = document.getElementById("addDoctorForm");
     if (addDoctorForm) {
@@ -186,10 +186,73 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         });
 
+        const modal = document.getElementById("editDoctorModal");
+        const closeModalBtn = document.getElementById("closeModalBtn");
+        const editForm = document.getElementById("editDoctorForm");
+
+        // Open modal and populate fields
+        document.querySelectorAll(".edit-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.getElementById("editDoctorId").value = btn.dataset.id;
+                document.getElementById("editEmail").value = btn.dataset.email;
+                document.getElementById("editSpecialization").value = btn.dataset.specialization;
+                document.getElementById("editExperience").value = btn.dataset.experience;
+                modal.style.display = "flex";
+            });
+        });
+
+        // Close modal
+        closeModalBtn.addEventListener("click", () => {
+            modal.style.display = "none";
+        });
+
+        // Submit edit form
+        editForm.addEventListener("submit", function(e) {
+            e.preventDefault();
+            const doctorId = document.getElementById("editDoctorId").value;
+            const email = document.getElementById("editEmail").value;
+            const specialization = document.getElementById("editSpecialization").value;
+            const experience = document.getElementById("editExperience").value;
+
+            fetch("/update_doctor", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ doctor_id: doctorId, email, specialization, experience })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: "success",
+                        title: "Doctor Updated",
+                        text: data.message,
+                        confirmButtonColor: "#0b2e59"
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Update Failed",
+                        text: data.error,
+                        confirmButtonColor: "#0b2e59"
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire({
+                    icon: "error",
+                    title: "Server Error",
+                    text: "An unexpected error occurred.",
+                    confirmButtonColor: "#0b2e59"
+                });
+            });
+        });
+
         // Delete Doctor
         document.addEventListener("click", (event) => {
-            if (event.target.classList.contains("delete-btn")) {
-                const doctorId = event.target.dataset.id;
+            if (event.target.classList.contains("delete-btn") || event.target.closest(".delete-btn")) {
+                const button = event.target.closest(".delete-btn");
+                const doctorId = button.dataset.id;
+                const doctorEmail = button.dataset.email;
 
                 Swal.fire({
                     title: "Are you sure?",
@@ -205,7 +268,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     fetch('/delete_doctor', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ doctor_id: Number(doctorId) })
+                        body: JSON.stringify({ doctor_id: Number(doctorId), email: doctorEmail })
                     })
                     .then(res => res.json())
                     .then(data => {
@@ -326,7 +389,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 .then(data => {
                     doctorDropdown.innerHTML = '<option value="">Select Doctor</option>';
                     data.forEach(doc => {
-                        doctorDropdown.innerHTML += `<option value="${doc.doctor_id}">${doc.name}</option>`;
+                        doctorDropdown.innerHTML += `
+                        <option value="${doc.doctor_id}" data-email="${doc.email}">
+                            ${doc.name}
+                        </option>`;
                     });
                 })
                 .catch(() => doctorDropdown.innerHTML = '<option>Error loading doctors</option>');
@@ -412,7 +478,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 e.preventDefault();
 
                 const specialization = document.getElementById("specialization").value;
-                const doctor_id = document.getElementById("doctor").value;
+                const doctorSelect = document.getElementById("doctor");
+                const doctor_id = doctorSelect.value;
+                const doctor_email = doctorSelect.options[doctorSelect.selectedIndex].dataset.email;
                 const date = document.getElementById("date").value;
                 const time = document.getElementById("time").value;
 
@@ -432,7 +500,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 fetch("/book_appointment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ specialization, doctor_id, date, time })
+                    body: JSON.stringify({ specialization, doctor_id, doctor_email, date, time })
                 })
                 .then(res => res.json())
                 .then(data => {
@@ -468,6 +536,9 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".cancel-btn").forEach(button => {
             button.addEventListener("click", () => {
                 const appointmentId = button.dataset.id;
+                const appointmentDate = button.dataset.date;
+                const appointmentTime = button.dataset.time;
+
                 Swal.fire({
                     title: "Cancel this appointment?",
                     text: "Once cancelled, it cannot be rebooked automatically.",
@@ -477,7 +548,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     cancelButtonColor: "#3085d6",
                     confirmButtonText: "Yes, cancel it!"
                 }).then((result) => {
-                    if (result.isConfirmed) cancelAppointment(appointmentId);
+                    if (result.isConfirmed) {
+                        cancelAppointment(appointmentId, appointmentDate, appointmentTime);
+                    }
                 });
             });
         });
@@ -486,7 +559,7 @@ document.addEventListener("DOMContentLoaded", function () {
             fetch("/cancel_booking", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ appointment_id: id })
+                body: JSON.stringify({ appointment_id: id, date, time })
             })
             .then(res => res.json())
             .then(data => {

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Sign Up{% endblock %}
+{% block title %}Sign Up - Medcare App{% endblock %}
 {% block content_class %}centered{% endblock %}
 {% block content %}
 <div class="signup-container">
@@ -8,10 +8,37 @@
         <input type="text" name="name" id="name" placeholder="Name" required>
         <input type="email" name="email" id="email" placeholder="Email" required>
         <input type="text" name="phone_number" id="phone_number" placeholder="Phone Number" required>
-        <input type="password" name="password" id="password" placeholder="Password" required>
-        <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+
+        <div class="signup-password-container">
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            <i class="fa-solid fa-eye" id="togglePassword"></i>
+        </div>
+
+        <div class="signup-password-container">
+            <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+            <i class="fa-solid fa-eye" id="toggleConfirmPassword"></i>
+        </div>
+
         <button type="submit" class="nav-btn">Sign Up</button>
     </form>
     <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
 </div>
+
+<script>
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const passwordField = document.getElementById('password');
+    const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+    passwordField.setAttribute('type', type);
+    this.classList.toggle('fa-eye');
+    this.classList.toggle('fa-eye-slash');
+});
+
+document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
+    const confirmField = document.getElementById('confirm_password');
+    const type = confirmField.getAttribute('type') === 'password' ? 'text' : 'password';
+    confirmField.setAttribute('type', type);
+    this.classList.toggle('fa-eye');
+    this.classList.toggle('fa-eye-slash');
+});
+</script>
 {% endblock %}

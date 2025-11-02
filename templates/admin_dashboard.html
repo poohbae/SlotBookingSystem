@@ -73,11 +73,19 @@
                     <p><i class="fa-solid fa-envelope" style="margin-right: 6px; color:#9c27b0;"></i><b>Email:</b> {{ doc['email'] }}</p>
                 </div>
 
-                <div style="text-align: center; margin-top: 10px;">
-                    <button class="cancel-btn delete-btn" data-id="{{ doc['doctor_id'] }}" 
-                            style="background:#f97b88; border:none; padding:8px 12px; border-radius:6px; color:white; cursor:pointer;">
-                        <i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>Delete
+                <div class="action-buttons">
+                    <button class="edit-btn" 
+                            data-id="{{ doc['doctor_id'] }}"
+                            data-email="{{ doc['email'] }}"
+                            data-specialization="{{ doc['specialization'] }}"
+                            data-experience="{{ doc['experience_years'] }}">
+                        <i class="fa-solid fa-pen-to-square" style="margin-right:5px;"></i>Edit
                     </button>
+                    <button class="cancel-btn delete-btn" 
+                        data-id="{{ doc['doctor_id'] }}" 
+                        data-email="{{ doc['email'] }}">
+                    <i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>Delete
+                </button>
                 </div>
             </div>
             {% endfor %}
@@ -109,6 +117,31 @@
             <input type="number" id="experience" placeholder="Years of Experience" min="0" required>
 
             <button type="submit" class="btn" style="margin-top: 15px;">Add Doctor</button>
+        </form>
+    </div>
+</div>
+
+<div id="editDoctorModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>Edit Doctor Info</h3>
+        <form id="editDoctorForm">
+            <input type="hidden" id="editDoctorId">
+            <input type="hidden" id="editEmail">
+
+            <label for="editSpecialization">Specialization:</label>
+            <input type="text" id="editSpecialization" required>
+
+            <label for="editExperience">Experience (Years):</label>
+            <input type="number" id="editExperience" required min="0">
+
+            <div class="modal-buttons">
+                <button type="submit" class="save-btn">
+                    <i class="fa-solid fa-check"></i> Save
+                </button>
+                <button type="button" class="cancel-btn" id="closeModalBtn">
+                    <i class="fa-solid fa-xmark"></i> Cancel
+                </button>
+            </div>
         </form>
     </div>
 </div>

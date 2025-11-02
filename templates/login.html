@@ -1,14 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}Login - Medcare App{% endblock %}
 {% block content_class %}centered{% endblock %}
 {% block content %}
 <div class="login-container">
     <h2>Login</h2>
-    <form method="POST" action="{{ url_for('login') }}">
+    <form id="loginForm" method="POST" action="{{ url_for('login') }}">
         <input type="text" name="email" placeholder="Email" required>
-        <input type="password" name="password" placeholder="Password" required>
+
+        <div class="login-password-container">
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            <i class="fa-solid fa-eye" id="togglePassword"></i>
+        </div>
+
         <button type="submit" class="nav-btn">Log In</button>
     </form>
     <p>Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a></p>
 </div>
+
+<script>
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const passwordField = document.getElementById('password');
+    const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+    passwordField.setAttribute('type', type);
+
+    // Toggle the eye / eye-slash icon
+    this.classList.toggle('fa-eye');
+    this.classList.toggle('fa-eye-slash');
+});
+</script>
 {% endblock %}

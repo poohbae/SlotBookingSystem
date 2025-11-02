@@ -152,7 +152,7 @@ h1, h2, h3 {
 .login-container, 
 .signup-container {
     width: 500px;
-    margin: 0 auto; /* Remove top margin */
+    margin: 0 auto;
     padding: 20px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 10px;
@@ -160,21 +160,19 @@ h1, h2, h3 {
     text-align: center;
     animation: fadeIn 1s ease-in-out;
     backdrop-filter: blur(10px);
-    
-    /* Stretch from below the navbar to the bottom */
     display: flex;
     flex-direction: column;
-    justify-content: flex-start; /* Start from the top */
+    justify-content: flex-start;
     align-items: center;
-    padding-top: 40px; /* Adjust as needed for spacing */
+    padding-top: 40px;
 }
 
 input, select {
     width: 90%;
     padding: 12px;
     margin: 10px 0;
-    border: 2px solid rgba(255, 255, 255, 0.6); /* Light border for visibility */
-    background: rgba(255, 255, 255, 0.8); /* Softer white background */
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.8);
     border-radius: 8px;
     font-size: 1rem;
     color: #222; /* Darker text for contrast */
@@ -183,20 +181,56 @@ input, select {
 }
 
 input::placeholder {
-    color: #666; /* Make placeholder text readable */
+    color: #666;
     font-style: italic;
 }
 
 input:focus, select:focus {
     outline: none;
-    border-color: #ffeb3b; /* Yellow highlight */
+    border-color: #ffeb3b;
     box-shadow: 0px 0px 10px rgba(255, 235, 59, 0.8);
-    background: #fff; /* Brighten when focused */
+    background: #fff;
 }
 
 select option[disabled] {
     color: #999;
     background-color: #f0f0f0;
+}
+
+.login-password-container,
+.signup-password-container {
+    position: relative;
+    width: 100%;
+}
+
+.login-password-container input,
+.signup-password-container input {
+    width: 90%;
+}
+
+.login-password-container i {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #777;
+    transition: color 0.2s ease;
+}
+
+.signup-password-container i {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #777;
+    transition: color 0.2s ease;
+}
+
+.login-password-container i:hover,
+.signup-password-container i:hover {
+    color: #0b2e59;
 }
 
 .dashboard-container {
@@ -363,6 +397,8 @@ button:active {
     text-align: center;
     margin-top: 40px;
     color: #0b2e59;
+    width: 100%;
+    display: block;
 }
 
 .doctor-list {
@@ -371,6 +407,85 @@ button:active {
     justify-content: center; 
     gap: 20px;
 }
+
+/* Modal Layout */
+.modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+.modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    width: 400px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    animation: fadeIn 0.25s ease-in-out;
+}
+
+.modal-content h3 {
+    text-align: center;
+    color: #0b2e59;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+
+.modal-content label {
+    display: block;
+    margin: 10px;
+    font-weight: bold;
+    color: #333;
+    text-align: left;
+}
+
+.modal-buttons {
+    width: 90%;
+    display: flex;
+    justify-content: space-between;
+    margin: 18px auto 0;
+}
+
+.modal-buttons .nav-btn,
+.modal-buttons .cancel-btn {
+    flex: 1;
+    padding: 8px 0;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.modal-buttons .save-btn {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    margin-right: 10px;
+}
+
+.modal-buttons .save-btn:hover {
+    background-color: #218838;
+}
+
+.modal-buttons .cancel-btn {
+    background-color: #f44336;
+    color: white;
+    border: none;
+}
+
+.modal-buttons .cancel-btn:hover {
+    background-color: #da190b;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 
 .appointment-table {
     width: 100%;
@@ -434,12 +549,12 @@ button:active {
 
 .action-buttons {
     display: flex;
-    justify-content: center; /* Center horizontally (optional) */
-    gap: 10px;               /* Space between buttons */
+    justify-content: center;
+    gap: 10px;
     margin-top: 10px;
 }
 
-.approve-btn, .reject-btn, .delete-btn {
+.approve-btn, .reject-btn, .edit-btn, .delete-btn {
     padding: 8px 14px;
     border: none;
     border-radius: 6px;
@@ -476,8 +591,8 @@ button:active {
     display: block;
     font-weight: 600;
     color: #0b2e59;
-    text-align: left; /* 🔹 Left-align the label */
-    margin-bottom: 8px; /* 🔹 Adds small gap between label & input */
+    text-align: left;
+    margin-bottom: 8px;
 }
 
 .profile-container input {
@@ -545,9 +660,9 @@ button:active {
     }
 }
 
-.approve-btn { background-color: #28a745; }
+.approve-btn, .edit-btn { background-color: #28a745; }
 .reject-btn, .delete-btn { background-color: #f97b88; }
-.approve-btn:hover { background-color: #218838; }
+.approve-btn:hover, .edit-btn:hover { background-color: #218838; }
 .reject-btn:hover, .delete-btn:hover { background-color: #ff1a1a; }
 
 .swal2-confirm {

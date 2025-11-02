@@ -214,7 +214,7 @@ def twofa_verify():
         else:
             cur.close()
             conn.close()
-            safe_log_async(user['user_id'], "2FA Failed", f"Incorrect 2FA code entered for user {user['user_id']}", request.remote_addr)
+            safe_log_async(user['user_id'], "2FA Failed", f"Incorrect 2FA code entered", request.remote_addr)
             flash("Invalid 2FA code.", "error")
     
     return render_template('2fa_verify.html')
@@ -263,15 +263,16 @@ def login():
             if user['two_factor_enabled']:
                 session.clear()
                 session['pending_user_id'] = user['user_id']
-                safe_log_async(user['user_id'], "Login (Pending 2FA)", f"User {email} passed password check, pending 2FA", request.remote_addr)
+                safe_log_async(user['user_id'], "Login (Pending 2FA)", f"{email} passed password check, pending 2FA", request.remote_addr)
                 return redirect(url_for('twofa_verify'))
             else:
                 session.clear()
                 session.permanent = True
                 session['user_id'] = user['user_id']
                 session['name'] = user['name']
+                session['email'] = user['email']
                 session['role_id'] = user['role_id']
-                safe_log_async(user['user_id'], "Login Success", f"User {email} logged in successfully", request.remote_addr)
+                safe_log_async(user['user_id'], "Login Success", f"{email} logged in successfully", request.remote_addr)
                 flash("Login successful!", "success")
                 return route_for_role()
         else:
@@ -425,7 +426,7 @@ def get_doctors(specialization):
 
     # Join doctor table + user table to get doctor names
     cur.execute("""
-        SELECT d.doctor_id, u.name
+        SELECT d.doctor_id, u.name, u.email
         FROM doctors d
         JOIN users u ON d.user_id = u.user_id
         WHERE d.specialization = ?
@@ -454,11 +455,12 @@ def book_appointment():
     data = request.get_json(force=True)
     specialization = data.get('specialization')
     doctor_id = data.get('doctor_id')
+    doctor_email = data.get('doctor_email')
     date = data.get('date')
     time_slot = data.get('time')
 
     # Validate input
-    if not all([specialization, doctor_id, date, time_slot]):
+    if not all([specialization, doctor_id, doctor_email, date, time_slot]):
         return jsonify({"success": False, "error": "All fields are required."}), 400
 
     conn = get_db_connection()
@@ -473,7 +475,7 @@ def book_appointment():
         if cur.fetchone():
             cur.close()
             conn.close()
-            safe_log_async(session['user_id'], "Failed Booking", f"Slot already booked for Doctor ID {doctor_id} on {date} at {time_slot}", request.remote_addr)
+            safe_log_async(session['user_id'], "Failed Booking", f"Slot already booked for Doctor: {doctor_email} on {date} at {time_slot}", request.remote_addr)
             return jsonify({"success": False, "error": "Selected time slot is already booked."}), 409
 
         # Insert new appointment
@@ -484,7 +486,7 @@ def book_appointment():
         conn.commit()
         cur.close()
         conn.close()
-        safe_log_async(session['user_id'], "Book Appointment", f"Doctor ID: {doctor_id}, Date: {date}, Time: {time_slot}", request.remote_addr)
+        safe_log_async(session['user_id'], "Book Appointment", f"Doctor: {doctor_email}, Date: {date}, Time: {time_slot}", request.remote_addr)
         return jsonify({"success": True, "message": "Appointment booked successfully!"})
     except Exception as e:
         conn.rollback()
@@ -501,6 +503,8 @@ def cancel_booking():
 
     data = request.get_json(force=True)
     appointment_id = data.get("appointment_id")
+    date = data.get("date")
+    time = data.get("time")
 
     if not appointment_id:
         return jsonify({"success": False, "error": "Missing appointment ID"}), 400
@@ -521,10 +525,10 @@ def cancel_booking():
     conn.close()
 
     if updated:
-        safe_log_async(session['user_id'], "Cancel Appointment", f"Appointment ID {appointment_id} cancelled", request.remote_addr)
+        safe_log_async(session['user_id'], "Cancel Appointment", f"Appointment on {date} at {time} cancelled", request.remote_addr)
         return jsonify({"success": True, "message": "Appointment cancelled successfully"})
     else:
-        safe_log_async(session['user_id'], "Failed Cancel Appointment", f"Appointment ID {appointment_id} not found or already cancelled", request.remote_addr)
+        safe_log_async(session['user_id'], "Failed Cancel Appointment", f"Attempted to cancel appointment on {date} at {time}", request.remote_addr)
         return jsonify({"success": False, "error": "Appointment not found or already cancelled"}), 404
 
 @app.route('/profile', methods=['GET'])
@@ -571,16 +575,101 @@ def profile():
     return render_template(
         'profile.html',
         user=user,
-        email=user['email'],  # plaintext
+        email=user['email'],
         phone=user_phone,
         doctor_info=doctor_info
     )
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile():
+    if 'user_id' not in session:
+        return jsonify({"success": False, "error": "Unauthorized access."}), 401
+
+    data = request.get_json()
+    name = bleach.clean(data.get('name', '').strip())
+    email = data.get('email', '').strip()
+    phone_number = data.get('phone_number', '').strip()
+    new_password = data.get('new_password', '').strip()
+    confirm_password = data.get('confirm_password', '').strip()
+
+    if not name or not email or not phone_number:
+        return jsonify({"success": False, "error": "All fields are required."}), 400
+
+    if not is_valid_email(email):
+        return jsonify({"success": False, "error": "Invalid email format!"}), 400
+
+    if not is_valid_phone(phone_number):
+        return jsonify({"success": False, "error": "Invalid phone number format!"}), 400
+
+    if len(email) > 255 or len(phone_number) > 30 or len(name) > 100:
+        return jsonify({"success": False, "error": "Input too long!"}), 400
+
+    # If password fields are provided
+    if new_password or confirm_password:
+        if new_password != confirm_password:
+            return jsonify({"success": False, "error": "Passwords do not match."}), 400
+        if not is_strong_password(new_password):
+            return jsonify({
+                "success": False,
+                "error": "Password must include upper, lower, and a number (min 8 chars)."
+            }), 400
+        
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Encrypt phone number
+        encrypted_phone = cipher.encrypt(phone_number.encode()).decode()
+
+        # Prevent duplicate phone number (decrypt and compare)
+        cur.execute("SELECT user_id, phone_number FROM users WHERE user_id != ?", (session['user_id'],))
+        existing_users = cur.fetchall()
+        for user in existing_users:
+            try:
+                if phone_number == cipher.decrypt(user['phone_number'].encode()).decode():
+                    cur.close()
+                    conn.close()
+                    return jsonify({"success": False, "error": "Phone number already registered."}), 400
+            except Exception:
+                continue
+
+        # Build query
+        update_query = "UPDATE users SET name = ?, phone_number = ?"
+        params = [name, encrypted_phone]
+
+        # If user wants to change password
+        if new_password:
+            hashed_password = generate_password_hash(new_password, method='pbkdf2:sha256', salt_length=16)
+            update_query += ", password = ?"
+            params.append(hashed_password)
+
+        update_query += " WHERE user_id = ?"
+        params.append(session['user_id'])
+
+        cur.execute(update_query, tuple(params))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        safe_log_async(session['user_id'], "Profile Updated", f"{email} updated profile info", request.remote_addr)
+
+        return jsonify({
+            "success": True,
+            "message": "Your profile has been successfully updated!"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        safe_log_async(session['user_id'], "Failed Profile Update", f"Error: {str(e)}", request.remote_addr)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/logout')
 def logout():
     user_id = session.get('user_id')
     email = session.get('email')
-    safe_log_async(user_id, "Logout", f"User {email} has logged out successfully", request.remote_addr)
+    safe_log_async(user_id, "Logout", f"{email} has logged out successfully", request.remote_addr)
     session.clear()
     flash("You have been logged out successfully.", "success")
     return redirect(url_for('home'))
@@ -714,7 +803,7 @@ def add_doctor():
         conn.commit()
         cur.close()
         conn.close()
-        safe_log_async(session.get('user_id'), "Add Doctor", f"Added doctor {email} successfully", request.remote_addr)
+        safe_log_async(session.get('user_id'), "Add Doctor", f"Added Doctor: {email} successfully", request.remote_addr)
         return jsonify({"success": True})
 
     except Exception as e:
@@ -723,12 +812,47 @@ def add_doctor():
         conn.close()
         safe_log_async(session.get('user_id'), "Failed Add Doctor", f"Database error: {str(e)}", request.remote_addr)
         return jsonify({"success": False, "error": str(e)})
+    
+@app.route('/update_doctor', methods=['POST'])
+def update_doctor():
+    data = request.get_json()
+    doctor_id = data.get('doctor_id')
+    email = data.get('email')
+    specialization = data.get('specialization', '').strip()
+    experience = data.get('experience', '').strip()
+
+    if not doctor_id or not specialization or experience == '':
+        return jsonify({"success": False, "error": "All fields are required."}), 400
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE doctors
+            SET specialization = ?, experience_years = ?
+            WHERE doctor_id = ?
+        """, (specialization, experience, doctor_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        safe_log_async(session['user_id'], "Updated Doctor Info",
+                       f"Updated specialization to '{specialization}' and experience to {experience} years for Doctor: {email}",
+                       request.remote_addr)
+        return jsonify({"success": True, "message": "Doctor information updated successfully."})
+
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        safe_log_async(session['user_id'], "Failed Doctor Update", f"Error updating doctor: {email}: {str(e)}", request.remote_addr)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/delete_doctor', methods=['POST'])
 def delete_doctor():
     data = request.get_json()
     doctor_id = data.get('doctor_id')
-
+    email = data.get('email')
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -750,14 +874,14 @@ def delete_doctor():
         conn.commit()
         cur.close()
         conn.close()
-        safe_log_async(session.get('user_id'), "Delete Doctor", f"Deleted Doctor ID: {doctor_id} and User ID: {user_id}", request.remote_addr)
+        safe_log_async(session.get('user_id'), "Delete Doctor", f"Deleted Doctor: {email}", request.remote_addr)
         return jsonify({"success": True})
 
     except Exception as e:
         conn.rollback()
         cur.close()
         conn.close()
-        safe_log_async(session.get('user_id'), "Failed Delete Doctor", f"Error deleting doctor {doctor_id}: {str(e)}", request.remote_addr)
+        safe_log_async(session.get('user_id'), "Failed Delete Doctor", f"Error deleting doctor {email}: {str(e)}", request.remote_addr)
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/admin_logs')
@@ -986,15 +1110,16 @@ def doctor_dashboard():
 
 @app.route('/update_appointment_status', methods=['POST'])
 def update_appointment_status():
-    if 'user_id' not in session or session.get('role_id') != 2:
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
     data = request.get_json()
     appointment_id = data.get("appointment_id")
     status = data.get("status")
+    patient = data.get("patient")
+    date = data.get("date")
+    time = data.get("time")
 
     if not appointment_id or status not in ['approved', 'rejected']:
-        safe_log_async(session['user_id'], "Failed Update Appointment", f"Invalid data provided: appointment_id={appointment_id}, status={status}", request.remote_addr)
+        safe_log_async(session['user_id'], "Failed Update Appointment", 
+                       f"Invalid appointment data — Patient: {patient}, Date: {date}, Time: {time}", request.remote_addr)
         return jsonify({"success": False, "error": "Invalid data"}), 400
 
     conn = get_db_connection()
@@ -1011,7 +1136,9 @@ def update_appointment_status():
     if not valid:
         cur.close()
         conn.close()
-        safe_log_async(session['user_id'], "Unauthorized Update", f"Attempt to modify unauthorized appointment ID {appointment_id}", request.remote_addr)
+        safe_log_async(session['user_id'], "Unauthorized Update", 
+                       f"Attempted to modify appointment of another doctor — Patient: {patient}, Date: {date}, Time: {time}", 
+                       request.remote_addr)
         return jsonify({"success": False, "error": "Unauthorized or appointment not found"}), 403
 
     try:
@@ -1019,13 +1146,15 @@ def update_appointment_status():
         conn.commit()
         cur.close()
         conn.close()
-        safe_log_async(session['user_id'], "Update Appointment Status", f"Appointment {appointment_id} marked as {status}")
+        safe_log_async(session['user_id'], "Update Appointment Status", f"{status.title()} Appointment — Patient: {patient}, Date: {date}, Time: {time}", 
+            request.remote_addr)
         return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         cur.close()
         conn.close()
-        safe_log_async(session['user_id'], "Failed Update Appointment", f"Database error while updating appointment {appointment_id}: {str(e)}", request.remote_addr)
+        safe_log_async(session['user_id'], "Failed Update Appointment", 
+                       f"Database error while updating — Patient: {patient}, Date: {date}, Time: {time}, Error: {str(e)}", request.remote_addr)
         return jsonify({"success": False, "error": str(e)}), 500
 
 # =============================
