@@ -26,6 +26,10 @@ log_lock = threading.Lock()
 # Session configuration
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True
+)
 
 # =============================
 # Session Timeout Management
@@ -1184,4 +1188,4 @@ def is_strong_password(pw):
     )
 
 if __name__ == '__main__':
-    app.run(debug=False, threaded=False, use_reloader=False)
+    app.run(debug=False, threaded=False, use_reloader=False, ssl_context=('cert.pem', 'key.pem'))
