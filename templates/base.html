@@ -44,6 +44,7 @@
 
                     {# Logout is always visible for logged-in users #}
                     <li><a href="{{ url_for('profile') }}" class="nav-btn">Profile</a></li>
+                    <li><a href="{{ url_for('security_tips') }}" class="nav-btn">Security Tips</a></li>
                     <li><a href="{{ url_for('logout') }}" class="nav-btn logout-btn">Logout</a></li>
                 {% endif %}
             </ul>

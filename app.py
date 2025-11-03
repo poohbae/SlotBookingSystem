@@ -1168,6 +1168,10 @@ def update_appointment_status():
                        f"Database error while updating — Patient: {patient}, Date: {date}, Time: {time}, Error: {str(e)}", request.remote_addr)
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/security_tips')
+def security_tips():
+    return render_template('security_tips.html')
+
 # =============================
 # Helper Functions
 # =============================

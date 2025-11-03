@@ -233,6 +233,18 @@ select option[disabled] {
     color: #0b2e59;
 }
 
+.security-hint, .password-hint {
+    font-size: 0.85em;
+    color: #444;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.security-hint i, .password-hint i {
+    color: #0b2e59;
+    margin-right: 5px;
+}
+
 .dashboard-container {
     padding: 40px; 
     text-align: center;
@@ -751,6 +763,50 @@ button:active {
 #logBody.loaded tr {
     opacity: 1;
     transform: translateY(0);
+}
+
+.security-tips-section {
+    margin-top: 30px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 15px 20px;
+    border-radius: 10px;
+    color: #0b2e59;
+}
+
+.security-tips-container {
+    max-width: 700px;
+    margin: 50px auto;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 30px;
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.security-tips-container h2 {
+    text-align: center;
+    color: #0b2e59;
+    margin-bottom: 20px;
+}
+
+.tips-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.tips-list li {
+    background: rgba(240, 240, 240, 0.2);
+    padding: 12px;
+    border-radius: 8px;
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+    font-size: 0.95em;
+}
+
+.tips-list li i {
+    margin-right: 10px;
+    color: #1E90FF;
 }
 
 /* Flash Messages */

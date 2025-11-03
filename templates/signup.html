@@ -14,6 +14,11 @@
             <i class="fa-solid fa-eye" id="togglePassword"></i>
         </div>
 
+        <small class="password-hint">
+            <i class="fa-solid fa-lock"></i> 
+            Use at least 8 characters, including uppercase, lowercase, and numbers.
+        </small>
+
         <div class="signup-password-container">
             <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
             <i class="fa-solid fa-eye" id="toggleConfirmPassword"></i>
@@ -21,6 +26,10 @@
 
         <button type="submit" class="nav-btn">Sign Up</button>
     </form>
+    <p class="security-hint">
+        <i class="fa-solid fa-shield-halved"></i>
+        Do not share your password or personal information with others.
+    </p>
     <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
 </div>
 
@@ -39,6 +48,22 @@ document.getElementById('toggleConfirmPassword').addEventListener('click', funct
     confirmField.setAttribute('type', type);
     this.classList.toggle('fa-eye');
     this.classList.toggle('fa-eye-slash');
+});
+
+document.getElementById("password").addEventListener("input", function() {
+    const hint = document.querySelector(".password-hint");
+    const pwd = this.value;
+
+    if (pwd.length < 8) {
+        hint.textContent = "Password too short (min 8 characters)";
+        hint.style.color = "red";
+    } else if (!/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd)) {
+        hint.textContent = "Add uppercase, lowercase, and number for better security.";
+        hint.style.color = "orange";
+    } else {
+        hint.textContent = "Strong password!";
+        hint.style.color = "green";
+    }
 });
 </script>
 {% endblock %}
