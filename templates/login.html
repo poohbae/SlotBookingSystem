@@ -4,7 +4,7 @@
 {% block content %}
 <div class="login-container">
     <h2>Login</h2>
-    <form id="loginForm" method="POST" action="{{ url_for('login') }}">
+    <form id="loginForm" method="POST" action="{{ url_for('login') }}" style="width: 100%;">
         <input type="text" name="email" placeholder="Email" required>
 
         <div class="login-password-container">

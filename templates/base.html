@@ -29,23 +29,53 @@
                 {% else %}
                     {# Admin Navigation #}
                     {% if session.get('role_id') == 1 %}
-                        <li><a href="{{ url_for('admin_dashboard') }}" class="nav-btn">Home</a></li>
-                        <li><a href="{{ url_for('admin_dashboard') }}#doctor-list" class="nav-btn">Manage Doctors</a></li>
-                        <li><a href="{{ url_for('admin_logs') }}" class="nav-btn">Logs</a></li>
+                    <li>
+                        <a href="{{ url_for('admin_dashboard') }}" 
+                        class="nav-btn {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+                        Home
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('admin_logs') }}" 
+                        class="nav-btn {% if request.endpoint == 'admin_logs' %}active{% endif %}">
+                        Logs
+                        </a>
+                    </li>
                     {# Doctor Navigation #}
                     {% elif session.get('role_id') == 2 %}
-                        <li><a href="{{ url_for('doctor_dashboard') }}" class="nav-btn">Home</a></li>
-
+                    <li>
+                        <a href="{{ url_for('doctor_dashboard') }}" 
+                        class="nav-btn {% if request.endpoint == 'doctor_dashboard' %}active{% endif %}">
+                        Home
+                        </a>
+                    </li>
                     {# Patient Navigation #}
                     {% elif session.get('role_id') == 3 %}
-                        <li><a href="{{ url_for('home') }}" class="nav-btn">Home</a></li>
-                        <li><a href="{{ url_for('patient_dashboard') }}#book-section" class="nav-btn">Book Appointment</a></li>
+                    <li>
+                        <a href="{{ url_for('patient_dashboard') }}" 
+                        class="nav-btn {% if request.endpoint == 'patient_dashboard' %}active{% endif %}">
+                        Home
+                        </a>
+                    </li>
                     {% endif %}
 
                     {# Logout is always visible for logged-in users #}
-                    <li><a href="{{ url_for('profile') }}" class="nav-btn">Profile</a></li>
-                    <li><a href="{{ url_for('security_tips') }}" class="nav-btn">Security Tips</a></li>
-                    <li><a href="{{ url_for('logout') }}" class="nav-btn logout-btn">Logout</a></li>
+                    <li>
+                        <a href="{{ url_for('profile') }}" 
+                        class="nav-btn {% if request.endpoint == 'profile' %}active{% endif %}">
+                        Profile
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('security_tips') }}" 
+                        class="nav-btn {% if request.endpoint == 'security_tips' %}active{% endif %}">
+                        Security Tips
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('logout') }}" 
+                        class="nav-btn logout-btn">Logout</a>
+                    </li>
                 {% endif %}
             </ul>
         </div>
@@ -65,32 +95,6 @@
         {% endif %}
         {% endwith %}
     </main>
-
-    <!-- Footer -->
-    <section class="footer-container">
-
-        <!-- Left -->
-        <div style="max-width: 500px; text-align: left; margin-left: 50px;">
-            <h2 style="margin-bottom: 10px;">MedCare App Slot Booking System</h2>
-            <p style="font-size: 14px; line-height: 1.6;">
-                MedCare App Allotment offers a user-friendly platform for booking appointment slots 
-                with doctors based on your preferred dates and times. Our system ensures easy 
-                navigation and satisfaction for both new and existing users.
-            </p>
-        </div>
-
-        <!-- Right -->
-        <div style="max-width: 450px; text-align: left;">
-            <h3 style="border-bottom: 2px solid blue; display: inline-block; padding-bottom: 5px;">Connect with Us</h3>
-            <div style="margin-top: 20px; display: flex; gap: 15px; flex-wrap: wrap;">
-                <a href="https://www.facebook.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" style="width: 35px; height: 35px;" /></a>
-                <a href="https://www.twitter.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" alt="Twitter" style="width: 35px; height: 35px;" /></a>
-                <a href="https://www.instagram.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" style="width: 35px; height: 35px;" /></a>
-                <a href="https://www.linkedin.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/3536/3536505.png" alt="LinkedIn" style="width: 35px; height: 35px;" /></a>
-                <a href="https://www.youtube.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" style="width: 35px; height: 35px;" /></a>
-            </div>
-        </div>
-    </section>
 
     <footer class="footer">
         © 2025 MedCare App Slot Booking System — All Rights Reserved

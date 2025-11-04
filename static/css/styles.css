@@ -98,10 +98,45 @@ h1, h2, h3 {
     border-radius: 8px;
 }
 
+.nav-btn {
+    text-decoration: none;
+    color: navy;
+    font-weight: 600;
+    font-size: 1rem;
+    font-style: italic;
+    letter-spacing: 0.5px;
+    transition: color 0.3s, transform 0.3s, background 0.3s;
+    padding: 8px 16px;
+    border-radius: 8px;
+}
+
+.nav-btn:hover {
+    color: white;
+    background: #f8b400;
+    transform: scale(1.08);
+}
+
+.nav-btn.active {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    background: linear-gradient(145deg, #ffffff, #dcdcdc);
+    box-shadow: 3px 3px 6px #aaaaaa, -3px -3px 6px #ffffff;
+    transform: translateY(-2px);
+}
+
+.login-btn.active,
+.logout-btn.active {
+    text-decoration: none;
+    background: none;
+    box-shadow: none;
+    transform: none;
+}
+
 .footer-container {
     background: white; 
     color: black; 
-    padding: 40px; 
+    padding: 20px; 
     display: flex; 
     justify-content: space-around; 
     align-items: flex-start; 
@@ -117,13 +152,6 @@ h1, h2, h3 {
     text-align: center; 
     padding: 10px; 
     border-top: 1px solid gray;
-}
-
-/* === HOVER EFFECT === */
-.nav-btn:hover {
-    color: white;
-    background: #f8b400;
-    transform: scale(1.08);
 }
 
 /* === LOGIN & LOGOUT BUTTONS === */
@@ -210,7 +238,7 @@ select option[disabled] {
 
 .login-password-container i {
     position: absolute;
-    right: 5px;
+    right: 20px;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
@@ -763,14 +791,6 @@ button:active {
 #logBody.loaded tr {
     opacity: 1;
     transform: translateY(0);
-}
-
-.security-tips-section {
-    margin-top: 30px;
-    background: rgba(255, 255, 255, 0.15);
-    padding: 15px 20px;
-    border-radius: 10px;
-    color: #0b2e59;
 }
 
 .security-tips-container {

@@ -77,7 +77,13 @@ document.addEventListener("DOMContentLoaded", function () {
             const result = await Swal.fire({
                 icon: "question",
                 title: "Confirm Registration",
-                text: "Are you sure all details are correct?",
+                html: `
+                    <p>Please review your details before continuing.</p>
+                    <p style="color:#d33; font-weight:bold;">
+                        This form contains personal information such as your name, email, and phone number.
+                    </p>
+                    <p>By clicking "Sign Up", you confirm that all information provided is correct and consent to its secure storage in the system.</p>
+                `,
                 showCancelButton: true,
                 confirmButtonText: "Yes, Sign Up",
                 cancelButtonText: "Cancel",
@@ -85,7 +91,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 cancelButtonColor: "#d33"
             });
 
-            // Only submit if user confirms
             if (result.isConfirmed) {
                 signupForm.submit();
             }
@@ -134,7 +139,13 @@ document.addEventListener("DOMContentLoaded", function () {
             // Confirm before submission
             Swal.fire({
                 title: "Confirm Add Doctor",
-                text: `Are you sure you want to add ${name}?`,
+                html: `
+                    <p>You're about to add <b>${name}</b> as a new doctor.</p>
+                    <p style="color:#d33; font-weight:bold;">
+                        This form includes personal information such as email, phone number, and specialization.
+                    </p>
+                    <p>Ensure that the information is accurate before submitting.</p>
+                `,
                 icon: "question",
                 showCancelButton: true,
                 confirmButtonColor: "#0b2e59",
